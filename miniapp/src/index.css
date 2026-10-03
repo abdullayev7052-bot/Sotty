@@ -1,0 +1,132 @@
+@import "tailwindcss";
+
+:root {
+  --primary: #2563eb;
+  --primary-soft: color-mix(in srgb, var(--primary) 12%, white);
+  --accent: #f97316;
+  --bg: #ffffff;
+  --text: #0f172a;
+  --muted: #64748b;
+  --line: #e2e8f0;
+  --card: #ffffff;
+  --soft: #f8fafc;
+  --radius: 18px;
+  --nav-h: 64px;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --font: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+  --heading-weight: 700;
+  --letter-spacing: 0px;
+  --bg-image: none;
+  --bg-size: auto;
+  --card-blur: none;
+  --card-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px -12px rgba(15, 23, 42, 0.12);
+  --card-border: 1px solid transparent;
+  --input-bg: #fff;
+  --input-border: 1px solid var(--line);
+  --nav-bg: rgba(255,255,255,.9);
+  --nav-blur: saturate(180%) blur(18px);
+  --nav-border: 1px solid var(--line);
+  --nav-shadow: none;
+  --nav-radius: 0px;
+  --nav-margin: 0px;
+}
+
+* { -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  letter-spacing: var(--letter-spacing);
+  background-image: var(--bg-image);
+  background-size: var(--bg-size);
+  background-attachment: fixed;
+  background-position: center;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: none;
+  user-select: none;
+}
+input, textarea { user-select: text; font: inherit; }
+button { font: inherit; cursor: pointer; }
+img { display: block; }
+::-webkit-scrollbar { display: none; }
+* { scrollbar-width: none; }
+
+@layer components {
+.page { min-height: 100dvh; padding-bottom: calc(var(--nav-h) + var(--safe-bottom) + 16px); }
+.wrap { padding-left: 16px; padding-right: 16px; }
+.card { background: var(--card); border-radius: var(--radius); box-shadow: var(--card-shadow); border: var(--card-border); backdrop-filter: var(--card-blur); -webkit-backdrop-filter: var(--card-blur); }
+.btn-primary { background: var(--primary); color: #fff; border-radius: 14px; font-weight: 600; }
+.btn-primary:disabled { opacity: 0.45; }
+.chip { border-radius: 999px; padding: 8px 14px; font-size: 14px; font-weight: 500; white-space: nowrap; border: 1px solid var(--line); background: #fff; color: var(--text); }
+.chip.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+.skeleton { background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 37%, #f1f5f9 63%); background-size: 400% 100%; animation: shimmer 1.4s ease infinite; border-radius: 12px; }
+@keyframes shimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+.line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+.input { width: 100%; border: var(--input-border); border-radius: 14px; padding: 12px 14px; font-size: 16px; background: var(--input-bg); outline: none; }
+.input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+}
+.leaflet-container { font: inherit; }
+.leaflet-control-attribution { font-size: 9px !important; }
+.story-ring { background: conic-gradient(from 0deg, var(--ring, #f97316), #ec4899, #8b5cf6, var(--ring, #f97316)); }
+.story-ring.seen { background: #cbd5e1; }
+.progress-bar { height: 3px; background: rgba(255,255,255,0.35); border-radius: 3px; overflow: hidden; }
+.progress-bar > div { height: 100%; background: #fff; }
+.safe-top { padding-top: env(safe-area-inset-top, 0px); }
+.reduced * { transition: none !important; animation: none !important; }
+
+/* ===== Tungi rejim ===== */
+:root { --dark-bg: #0f172a; --dark-card: #1e293b; --dark-text: #f1f5f9; }
+[data-theme="dark"] {
+  --bg: var(--dark-bg);
+  --card: var(--dark-card);
+  --text: var(--dark-text);
+  --muted: #94a3b8;
+  --line: #334155;
+  --soft: #1e293b;
+  --primary-soft: color-mix(in srgb, var(--primary) 22%, var(--dark-card));
+}
+[data-theme="dark"] body { background: var(--bg); color: var(--text); }
+[data-theme="dark"] .card { background: var(--card); box-shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px -12px rgba(0,0,0,.5); }
+[data-theme="dark"] .input { background: var(--card); border-color: var(--line); color: var(--text); }
+[data-theme="dark"] .chip { background: var(--card); border-color: var(--line); color: var(--text); }
+[data-theme="dark"] .chip.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+[data-theme="dark"] .skeleton { background: linear-gradient(90deg, #1e293b 25%, #334155 37%, #1e293b 63%); background-size: 400% 100%; }
+[data-theme="dark"] .bg-white, [data-theme="dark"] .bg-white\/95, [data-theme="dark"] .bg-white\/90 { background-color: var(--card) !important; }
+[data-theme="dark"] .bg-slate-50, [data-theme="dark"] .bg-slate-100 { background-color: #0f172a !important; }
+[data-theme="dark"] .bg-slate-200 { background-color: #334155 !important; }
+[data-theme="dark"] .text-slate-900, [data-theme="dark"] .text-slate-800, [data-theme="dark"] .text-slate-700 { color: var(--text) !important; }
+[data-theme="dark"] .text-slate-600, [data-theme="dark"] .text-slate-500 { color: #cbd5e1 !important; }
+[data-theme="dark"] .text-slate-400, [data-theme="dark"] .text-slate-300 { color: #94a3b8 !important; }
+[data-theme="dark"] .border-slate-100, [data-theme="dark"] .border-slate-200 { border-color: var(--line) !important; }
+[data-theme="dark"] .bg-\[var\(--primary-soft\)\] { background-color: var(--primary-soft) !important; }
+[data-theme="dark"] .active\:bg-slate-50:active { background-color: #0f172a !important; }
+[data-theme="dark"] .bg-emerald-50 { background-color: rgba(16,185,129,.15) !important; }
+[data-theme="dark"] .bg-red-50 { background-color: rgba(239,68,68,.15) !important; }
+[data-theme="dark"] .bg-amber-50 { background-color: rgba(245,158,11,.15) !important; }
+[data-theme="dark"] .bg-blue-50, [data-theme="dark"] .bg-indigo-50, [data-theme="dark"] .bg-purple-50 { background-color: rgba(99,102,241,.18) !important; }
+[data-theme="dark"] .leaflet-container { filter: brightness(.85) contrast(1.05); }
+/* Tungi rejimda oq fonli bo'laklar ichidagi qora matn ko'rinib tursin */
+[data-theme="dark"] .bg-\[var\(--soft\)\] { background-color: var(--soft) !important; }
+[data-theme="dark"] .text-slate-700, [data-theme="dark"] .text-slate-600 { color: #e2e8f0 !important; }
+[data-theme="dark"] .border-slate-200\/70 { border-color: var(--line) !important; }
+
+
+/* ===== Narx oralig'i (ikki tomonlama slider) ===== */
+.range-thumb { -webkit-appearance: none; appearance: none; height: 36px; }
+.range-thumb::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; pointer-events: auto;
+  width: 24px; height: 24px; border-radius: 999px; background: #fff;
+  border: 3px solid var(--primary); box-shadow: 0 1px 4px rgba(15,23,42,.25); cursor: pointer;
+}
+.range-thumb::-moz-range-thumb {
+  pointer-events: auto; width: 20px; height: 20px; border-radius: 999px; background: #fff;
+  border: 3px solid var(--primary); box-shadow: 0 1px 4px rgba(15,23,42,.25); cursor: pointer;
+}
+.range-thumb::-webkit-slider-runnable-track { background: transparent; }
+
+
+/* ===== Sarlavhalar admin sozlamasidagi qalinlikda ===== */
+h1, h2, h3, .font-bold { font-weight: var(--heading-weight); }

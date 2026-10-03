@@ -1,0 +1,385 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Telegram orqali ro'yxatdan o'tgan mijoz (ichki mijozlar bazasi).
+/// Izoh: bitoCustomerId/bitoCategoryId maydonlari eski nomlar — endi ichki, ishlatilmaydi (keyingi migratsiyada olib tashlanadi).
+model User {
+  id             Int      @id @default(autoincrement())
+  telegramId     BigInt   @unique
+  tgUsername     String?
+  tgFirstName    String?
+  name           String?
+  phone          String?
+  bitoCustomerId String?  @unique
+  /// Bito'dagi mijoz kategoriyasi (xabar yuborilgach shu qiymat qaytariladi)
+  bitoCategoryId String?
+  language       String   @default("uz")
+  storeId        String   @default("main")
+  address        String?
+  lat            Float?
+  lng            Float?
+  step           String   @default("new") // new | phone | name | done
+  isBlocked      Boolean  @default(false)
+  /// Oxirgi faollik (bot yoki Mini App) — DAU/WAU/MAU va "faol bo'lmay qolganlar" uchun
+  lastActiveAt   DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  orders    Order[]
+  waitlist  Waitlist[]
+  events    AppEvent[]
+  favorites Favorite[]
+  cart      CartItem[]
+}
+
+/// Mahsulot (ichki katalog). Admin paneldan qo'lda qo'shiladi/tahrirlanadi.
+/// Izoh: bitoId — ichki barqaror mahsulot kodi (nom tarixiy; keyingi migratsiyada "code" ga o'zgartiriladi).
+model Product {
+  id             Int      @id @default(autoincrement())
+  bitoId         String   @unique
+  name           String
+  searchKey      String   @default("")
+  image          String?
+  images         Json     @default("[]")
+  price          Float    @default(0)
+  priceId        String?
+  currencyId     String?
+  stock          Float    @default(0)
+  /// Har bir do'kon (tashkilot konteksti) bo'yicha narx/qoldiq: { main: {price, stock, available}, s2: {...} }
+  stores         Json     @default("{}")
+  /// Barcha sinxronlangan narx ro'yxatlari: { <priceId>: amount }
+  prices         Json     @default("{}")
+  discountPercent Float   @default(0)
+  roundStep      Int      @default(0)
+  roundMode      String   @default("nearest")
+  boxItem        Float    @default(0)
+  measure        String?
+  measureDecimals Int     @default(0)
+  sku            String?
+  barcode        String?
+  note           String?
+  customFields   Json     @default("[]")
+  categoryBitoId String?
+  categoryName   String?
+  /// Bito variant mahsulotlari: ota mahsulot (is_parent) va uning variantlari (parent_id)
+  parentBitoId   String?
+  isParent       Boolean  @default(false)
+  /// Variant atributlari: [{ name: "Rang", value: "Qora" }]
+  variantAttrs   Json     @default("[]")
+  /// Variant nomi (faqat atributlar): "Qora / S"
+  variantLabel   String?
+  isAvailableForSale Boolean @default(true)
+  isDeleted      Boolean  @default(false)
+  // Admin boshqaruvi
+  hidden         Boolean  @default(false)
+  featured       Boolean  @default(false)
+  sortOrder      Int      @default(0)
+  bitoUpdatedAt  DateTime?
+  bitoCreatedAt  DateTime?
+  syncedAt       DateTime @default(now())
+
+  waitlist  Waitlist[]
+  favorites Favorite[]
+  cartItems CartItem[]
+
+  @@index([categoryBitoId])
+  @@index([hidden, sortOrder])
+  @@index([parentBitoId])
+}
+
+/// Kategoriya (ichki katalog). bitoId — ichki barqaror kategoriya kodi.
+model Category {
+  id         Int     @id @default(autoincrement())
+  bitoId     String  @unique
+  name       String
+  parentId   String?
+  image      String?
+  itemCount  Int     @default(0)
+  hidden     Boolean @default(false)
+  sortOrder  Int     @default(0)
+  isDeleted  Boolean @default(false)
+  syncedAt   DateTime @default(now())
+}
+
+/// Mini App yoki bot orqali berilgan buyurtma (ichki)
+model Order {
+  id               Int      @id @default(autoincrement())
+  bitoId           String?  @unique
+  number           String?
+  userId           Int
+  user             User     @relation(fields: [userId], references: [id])
+  type             String   // delivery | pickup
+  storeId          String   @default("main")
+  stateId          String?
+  stateKey         String?  // new | in_progress | done | canceled | custom
+  stateName        String?
+  items            Json
+  total            Float    @default(0)
+  itemsCount       Float    @default(0)
+  phone            String?
+  customerName     String?
+  address          String?
+  lat              Float?
+  lng              Float?
+  comment          String?
+  groupChatId      String?
+  groupMessageId   Int?
+  customerMessageId Int?
+  history          Json     @default("[]")
+  bitoPayload      Json?
+  error            String?
+  /// To'lov: kutilmoqda | to'landi | bekor qilindi (pending | paid | canceled)
+  paymentState     String?
+  paymentProvider  String?
+  isPaid           Boolean  @default(false)
+  paidAt           DateTime?
+  payments         Payment[]
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([userId])
+  @@index([stateKey])
+}
+
+/// "Kelganda eslating" — kutilayotgan mahsulotlar
+model Waitlist {
+  id         Int       @id @default(autoincrement())
+  userId     Int
+  user       User      @relation(fields: [userId], references: [id])
+  productId  Int
+  product    Product   @relation(fields: [productId], references: [id])
+  notifiedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@unique([userId, productId])
+}
+
+/// Instagram uslubidagi storis (doira). Har birida bir nechta slayd bo'lishi mumkin.
+model Story {
+  id        Int      @id @default(autoincrement())
+  title     String
+  cover     String
+  active    Boolean  @default(true)
+  sortOrder Int      @default(0)
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
+  slides    StorySlide[]
+}
+
+model StorySlide {
+  id        Int     @id @default(autoincrement())
+  storyId   Int
+  story     Story   @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  image     String
+  caption   String?
+  link      String?
+  duration  Int     @default(5)
+  buttonText String?
+  sortOrder Int     @default(0)
+}
+
+/// Bosh sahifadagi aylanma bannerlar
+model Banner {
+  id        Int      @id @default(autoincrement())
+  image     String
+  title     String?
+  subtitle  String?
+  link      String?
+  textColor String   @default("#ffffff")
+  active    Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  /// Bannerga biriktirilgan mahsulotlar (bosilganda katalog shular bo'yicha filtrlanadi)
+  productIds Json    @default("[]")
+}
+
+/// Admin paneldan boshqariladigan barcha sozlamalar (bo'limlar bo'yicha JSON)
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+/// Buyurtmalar tushadigan Telegram guruhlari
+model AdminGroup {
+  id        Int      @id @default(autoincrement())
+  chatId    String   @unique
+  title     String?
+  enabled   Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+/// Buyurtma holatini o'zgartira oladigan xodimlar
+model Staff {
+  id         Int      @id @default(autoincrement())
+  telegramId String   @unique
+  name       String?
+  username   String?
+  role       String   @default("staff") // admin | staff
+  /// Ulashish rejimi: Mini App'da faqat katalog+savatcha, buyurtma bermaydi, savatni ulashadi
+  shareAdmin Boolean  @default(false)
+  createdAt  DateTime @default(now())
+}
+
+/// Takroriy bildirishnomalarni oldini olish (savdo cheki, to'lov va h.k.)
+model SentEvent {
+  key       String   @id
+  createdAt DateTime @default(now())
+}
+
+/// Sinxronizatsiya holati (oxirgi vaqtlar va h.k.)
+model SyncState {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+/// Bot faoliyati jurnali (admin panelda ko'rish uchun)
+model ActivityLog {
+  id        Int      @id @default(autoincrement())
+  type      String
+  message   String
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+/// Admin paneldan yuklangan fayllar (rasm/video) — serverda disk vaqtinchalik bo'lgani uchun bazada
+model Upload {
+  name      String   @id
+  mime      String
+  size      Int
+  data      Bytes
+  createdAt DateTime @default(now())
+}
+
+/// Analitika hodisalari (Mini App/bot foydalanuvchi harakatlari): app_open, product_view, search, add_to_cart, ...
+model AppEvent {
+  id        Int      @id @default(autoincrement())
+  userId    Int?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  name      String
+  /// Telegram platformasi: ios | android | tdesktop | web | weba | macos | bot
+  platform  String?
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  @@index([name, createdAt])
+  @@index([userId, createdAt])
+  @@index([createdAt])
+}
+
+/// "Istaklarim" (Favourites) — mijoz yoqtirgan mahsulotlar
+model Favorite {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId Int
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+  @@index([productId])
+}
+
+/// Mini App savatchasining serverdagi nusxasi — "necha kishining savatida" ko'rsatkichi uchun
+model CartItem {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId Int
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  qty       Float    @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, productId])
+  @@index([productId, updatedAt])
+}
+
+/// Bosh sahifadagi qo'shimcha bloklar: mahsulot to'plamlari ("Hafta bestsellerlari")
+/// va mini bloklar ("Mualliflar", "Nashriyotlar") — qo'shimcha maydon qiymatlari bo'yicha
+model HomeBlock {
+  id        Int      @id @default(autoincrement())
+  /// products — mahsulotlar qatori; chips — rasmli mini bloklar
+  kind      String   @default("products")
+  /// manual (qo'lda tanlangan) | featured | new | popular | field (qo'shimcha maydon qiymatlari)
+  source    String   @default("manual")
+  /// chips va field uchun: cf:<id> | category
+  fieldKey  String?
+  title     Json     @default("{}")
+  /// { shape, size, columns, radius, showTitle, cardStyle }
+  style     Json     @default("{}")
+  limit     Int      @default(12)
+  active    Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  items     HomeBlockItem[]
+}
+
+model HomeBlockItem {
+  id        Int       @id @default(autoincrement())
+  blockId   Int
+  block     HomeBlock @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  /// products bloki uchun
+  productId Int?
+  /// chips bloki uchun: maydon qiymati (masalan "Tohir Malik")
+  value     String?
+  image     String?
+  title     String?
+  /// Mini blokdagi nom o'lchami (px) — har bir qiymat uchun alohida
+  titleSize Int?
+  sortOrder Int       @default(0)
+
+  @@index([blockId, sortOrder])
+}
+
+/// Adminlar ulashgan savat/mahsulot havolasi (qisqa kod bilan)
+model Share {
+  code      String   @id
+  /// cart | product | category
+  kind      String   @default("cart")
+  /// { items: [{productId, qty, boxCount}] } yoki { productId } / { categoryId }
+  payload   Json     @default("{}")
+  createdBy Int?
+  opens     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+/// Onlayn to'lov tranzaksiyasi (Payme Merchant API)
+model Payment {
+  id          Int      @id @default(autoincrement())
+  provider    String   @default("payme")
+  orderId     Int?
+  order       Order?   @relation(fields: [orderId], references: [id])
+  userId      Int?
+  /// Summa tiyinda (Payme shu birlikda ishlaydi)
+  amount      Int
+  /// 1 yaratilgan, 2 to'langan, -1 bekor, -2 to'langach bekor
+  state       Int      @default(1)
+  /// Payme tomonidagi tranzaksiya identifikatori
+  paycomId    String?  @unique
+  /// Payme'da yaratilgan vaqt (ms)
+  paycomTime  BigInt   @default(0)
+  createTime  BigInt   @default(0)
+  performTime BigInt   @default(0)
+  cancelTime  BigInt   @default(0)
+  reason      Int?
+  account     Json     @default("{}")
+  /// Sinov (песочница) kaliti bilan yaratilganmi
+  sandbox     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([state])
+  @@index([paycomTime])
+}

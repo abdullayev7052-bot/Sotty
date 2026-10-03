@@ -1,0 +1,202 @@
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Plus, Trash2, ArrowUp, ArrowDown, Pencil, Images } from "lucide-react";
+import { api } from "../lib/api.ts";
+import { ImageUpload, Modal, PageTitle, Spinner, Toggle, useToast, confirmDialog, isVideoUrl } from "../components/ui.tsx";
+import { LinkPicker } from "../components/LinkPicker.tsx";
+
+interface Limits { imageBytes: number; gifBytes: number; videoBytes: number; stories: number; slidesPerStory: number; banners: number; totalBytes: number; used: { stories: number; banners: number; bytes: number } }
+const mb = (b: number) => `${Math.round(b / 1048576)} MB`;
+/** Belgilangan media limitlari (admin o'zgartira olmaydi) */
+function LimitsBar({ kind }: { kind: "stories" | "banners" }) {
+  const q = useQuery({ queryKey: ["media-limits"], queryFn: () => api.get<Limits>("/media/limits"), staleTime: 10_000 });
+  const l = q.data; if (!l) return null;
+  return (
+    <div className="text-xs text-slate-500 mb-3 flex flex-wrap gap-x-3 gap-y-1">
+      {kind === "stories" ? <span>Storis: <b>{l.used.stories}/{l.stories}</b> · slayd/storis: {l.slidesPerStory}</span> : <span>Bannerlar: <b>{l.used.banners}/{l.banners}</b></span>}
+      <span>Rasm ≤ {mb(l.imageBytes)}, GIF ≤ {mb(l.gifBytes)}, video ≤ {mb(l.videoBytes)}</span>
+      <span>Umumiy hajm: {mb(l.used.bytes)}/{mb(l.totalBytes)}</span>
+    </div>
+  );
+}
+
+interface Slide { id: number; image: string; caption: string | null; link: string | null; duration: number; buttonText?: string | null; sortOrder: number }
+interface Story { id: number; title: string; cover: string; active: boolean; sortOrder: number; expiresAt: string | null; slides: Slide[] }
+interface Banner { id: number; image: string; link: string | null; active: boolean; sortOrder: number; productIds?: number[] }
+
+/* ================= STORIS ================= */
+export function StoriesPage() {
+  const qc = useQueryClient();
+  const toast = useToast((s) => s.show);
+  const q = useQuery({ queryKey: ["stories"], queryFn: () => api.get<Story[]>("/stories") });
+  const [edit, setEdit] = useState<Partial<Story> | null>(null);
+  const [slideFor, setSlideFor] = useState<Story | null>(null);
+  const [slide, setSlide] = useState<Partial<Slide>>({});
+  const reloadSlides = async (id: number) => { await refresh(); const fresh = await api.get<Story[]>("/stories"); setSlideFor(fresh.find((s) => s.id === id) || null); };
+  /** Mavjud slaydni tahrirlash (davomiylik, tugma matni, matn, havola) */
+  const patchSlide = async (id: number, body: Partial<Slide>) => {
+    if (!slideFor) return;
+    try { await api.put(`/slides/${id}`, body); await reloadSlides(slideFor.id); } catch (e) { toast((e as Error).message, "err"); }
+  };
+  const refresh = () => qc.invalidateQueries({ queryKey: ["stories"] });
+
+  const saveStory = async () => {
+    if (!edit) return;
+    if (!edit.title || !edit.cover) { toast("Sarlavha va muqova rasmi kerak", "err"); return; }
+    try {
+      const body = { title: edit.title, cover: edit.cover, active: edit.active ?? true, expiresAt: edit.expiresAt || null };
+      if (edit.id) await api.put(`/stories/${edit.id}`, body); else await api.post("/stories", body);
+      setEdit(null); toast("Saqlandi"); await refresh();
+    } catch (e) { toast((e as Error).message, "err"); }
+  };
+  const addSlide = async () => {
+    if (!slideFor || !slide.image) { toast("Slayd rasmi kerak", "err"); return; }
+    try {
+      await api.post(`/stories/${slideFor.id}/slides`, { image: slide.image, caption: slide.caption || null, link: slide.link || null, duration: Math.max(1, Math.min(180, Number(slide.duration) || 5)), buttonText: slide.buttonText || null });
+      setSlide({}); toast("Slayd qo'shildi"); await refresh();
+      const fresh = await api.get<Story[]>("/stories"); setSlideFor(fresh.find((s) => s.id === slideFor.id) || null);
+    } catch (e) { toast((e as Error).message, "err"); }
+  };
+  const move = async (list: Story[], i: number, dir: -1 | 1) => {
+    const ids = list.map((s) => s.id); const j = i + dir; if (j < 0 || j >= ids.length) return;
+    [ids[i], ids[j]] = [ids[j], ids[i]];
+    await api.post("/stories/reorder", { ids }); await refresh();
+  };
+  if (q.isLoading) return <Spinner />;
+  const list = q.data || [];
+  return (
+    <div>
+      <PageTitle title="Storis" description="Doira storislar — bosh sahifaning tepasida. Har bir storisda bir nechta slayd bo'lishi mumkin." actions={<button className="btn btn-primary" onClick={() => setEdit({ active: true })}><Plus size={16} /> Yangi storis</button>} />
+      <LimitsBar kind="stories" />
+      {!list.length && <div className="card p-8 text-center text-slate-500">Hali storis yo'q. "Yangi storis" tugmasini bosing.</div>}
+      <div className="grid md:grid-cols-2 gap-3">
+        {list.map((s, i) => (
+          <div key={s.id} className={`card p-4 flex gap-4 ${!s.active ? "opacity-60" : ""}`}>
+            <img src={s.cover} className="w-16 h-16 rounded-full object-cover ring-2 ring-orange-400 ring-offset-2" />
+            <div className="flex-1 min-w-0">
+              <div className="font-semibold truncate">{s.title}</div>
+              <div className="text-xs text-slate-500">{s.slides.length} ta slayd · {s.active ? "faol" : "o'chirilgan"}{s.expiresAt ? ` · ${new Date(s.expiresAt).toLocaleDateString()} gacha` : ""}</div>
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {s.slides.map((sl) => isVideoUrl(sl.image) ? <video key={sl.id} src={sl.image} muted className="w-9 h-12 rounded-md object-cover border border-slate-200" /> : <img key={sl.id} src={sl.image} title={`${sl.duration}s`} className="w-9 h-12 rounded-md object-cover border border-slate-200" />)}
+              </div>
+              <div className="flex flex-wrap gap-1.5 mt-3">
+                <button className="btn btn-ghost !px-2 !py-1 text-xs" onClick={() => setSlideFor(s)}><Images size={14} /> Slaydlar</button>
+                <button className="btn btn-ghost !px-2 !py-1 text-xs" onClick={() => setEdit(s)}><Pencil size={14} /></button>
+                <button className="btn btn-ghost !px-2 !py-1 text-xs" onClick={() => { void move(list, i, -1); }}><ArrowUp size={14} /></button>
+                <button className="btn btn-ghost !px-2 !py-1 text-xs" onClick={() => { void move(list, i, 1); }}><ArrowDown size={14} /></button>
+                <button className="btn btn-danger !px-2 !py-1 text-xs" onClick={() => { if (confirmDialog("O'chirilsinmi?")) void api.del(`/stories/${s.id}`).then(refresh); }}><Trash2 size={14} /></button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <Modal open={!!edit} onClose={() => setEdit(null)} title={edit?.id ? "Storisni tahrirlash" : "Yangi storis"}>
+        {edit && (
+          <div className="space-y-4">
+            <div><label className="label">Sarlavha (doira ostida)</label><input className="input" value={edit.title || ""} onChange={(e) => setEdit({ ...edit, title: e.target.value })} /></div>
+            <div><label className="label">Muqova rasmi (doira)</label><ImageUpload value={edit.cover || ""} onChange={(v) => setEdit({ ...edit, cover: v })} hint="Kvadrat rasm tavsiya etiladi" /></div>
+            <div><label className="label">Tugash sanasi (ixtiyoriy)</label><input type="datetime-local" className="input max-w-xs" value={edit.expiresAt ? edit.expiresAt.slice(0, 16) : ""} onChange={(e) => setEdit({ ...edit, expiresAt: e.target.value ? new Date(e.target.value).toISOString() : null })} /></div>
+            <Toggle value={edit.active ?? true} onChange={(v) => setEdit({ ...edit, active: v })} label="Faol" />
+            <div className="flex justify-end gap-2"><button className="btn btn-ghost" onClick={() => setEdit(null)}>Bekor</button><button className="btn btn-primary" onClick={() => { void saveStory(); }}>Saqlash</button></div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal open={!!slideFor} onClose={() => setSlideFor(null)} title={`Slaydlar — ${slideFor?.title || ""}`} width={720}>
+        {slideFor && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+              {slideFor.slides.map((sl) => (
+                <div key={sl.id} className="relative group">
+                  {isVideoUrl(sl.image) ? <video src={sl.image} className="w-full aspect-[9/16] object-cover rounded-lg" muted autoPlay loop playsInline /> : <img src={sl.image} className="w-full aspect-[9/16] object-cover rounded-lg" />}
+                  <div className="absolute bottom-1 left-1 right-1 flex items-center gap-1 bg-black/60 text-white px-1 rounded text-[10px]">
+                    <input type="number" min={1} max={180} defaultValue={sl.duration} key={`${sl.id}-${sl.duration}`} className="w-10 bg-transparent text-white text-[11px] outline-none text-center" title="Davomiylik (soniya)"
+                      onBlur={(e) => { const d = Math.max(1, Math.min(180, Number(e.target.value) || sl.duration)); if (d !== sl.duration) void patchSlide(sl.id, { duration: d }); }} />s
+                    <button className="ml-auto opacity-80 hover:opacity-100" title="Tugma matni" onClick={() => { const t = window.prompt("Havola tugmasi matni (bo'sh — umumiy sozlama):", sl.buttonText || ""); if (t !== null) void patchSlide(sl.id, { buttonText: t.trim() || null }); }}><Pencil size={11} /></button>
+                  </div>
+                  <button className="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-600 text-white items-center justify-center flex md:hidden md:group-hover:flex" onClick={() => { void api.del(`/slides/${sl.id}`).then(async () => { await refresh(); const fresh = await api.get<Story[]>("/stories"); setSlideFor(fresh.find((s) => s.id === slideFor.id) || null); }); }}><Trash2 size={12} /></button>
+                </div>
+              ))}
+            </div>
+            <div className="border-t border-slate-100 pt-4 space-y-3">
+              <div className="font-semibold text-sm">Yangi slayd</div>
+              <ImageUpload video value={slide.image || ""} onChange={(v) => setSlide({ ...slide, image: v })} hint="Vertikal (9:16) rasm, GIF yoki qisqa video (mp4, 25 MB gacha; ovozli video ovozi bilan ijro etiladi)" />
+              <div className="grid sm:grid-cols-3 gap-3">
+                <div><label className="label">Matn (ixtiyoriy)</label><input className="input" value={slide.caption || ""} onChange={(e) => setSlide({ ...slide, caption: e.target.value })} /></div>
+                <div className="sm:col-span-3"><label className="label">Havola (ixtiyoriy)</label><LinkPicker value={slide.link || ""} onChange={(v) => setSlide({ ...slide, link: v })} /></div>
+                <div><label className="label">Davomiylik (soniya)</label><input type="number" className="input" min={1} max={180} placeholder="5" value={slide.duration ?? ""} onChange={(e) => setSlide({ ...slide, duration: e.target.value === "" ? undefined : Number(e.target.value) })} /><div className="help">1–180 soniya, istalgan qiymat. Keyin slayd ustidagi raqamni bosib o'zgartirish mumkin.</div></div>
+                <div className="sm:col-span-2"><label className="label">Havola tugmasi matni (ixtiyoriy)</label><input className="input" placeholder="Umumiy sozlamadagi matn (masalan: 🛒 Buyurtma berish)" value={slide.buttonText || ""} onChange={(e) => setSlide({ ...slide, buttonText: e.target.value })} /></div>
+              </div>
+              <button className="btn btn-primary" onClick={() => { void addSlide(); }}><Plus size={16} /> Slayd qo'shish</button>
+            </div>
+          </div>
+        )}
+      </Modal>
+    </div>
+  );
+}
+
+/* ================= BANNERLAR ================= */
+export function BannersPage() {
+  const qc = useQueryClient();
+  const toast = useToast((s) => s.show);
+  const q = useQuery({ queryKey: ["banners"], queryFn: () => api.get<Banner[]>("/banners") });
+  const [edit, setEdit] = useState<Partial<Banner> | null>(null);
+  const refresh = () => qc.invalidateQueries({ queryKey: ["banners"] });
+  const save = async () => {
+    if (!edit?.image) { toast("Rasm kerak", "err"); return; }
+    try {
+      const body = { image: edit.image, link: edit.link || null, active: edit.active ?? true };
+      if (edit.id) await api.put(`/banners/${edit.id}`, body); else await api.post("/banners", body);
+      setEdit(null); toast("Saqlandi"); await refresh();
+    } catch (e) { toast((e as Error).message, "err"); }
+  };
+  const move = async (list: Banner[], i: number, dir: -1 | 1) => {
+    const ids = list.map((s) => s.id); const j = i + dir; if (j < 0 || j >= ids.length) return;
+    [ids[i], ids[j]] = [ids[j], ids[i]];
+    await api.post("/banners/reorder", { ids }); await refresh();
+  };
+  if (q.isLoading) return <Spinner />;
+  const list = q.data || [];
+  return (
+    <div>
+      <PageTitle title="Bannerlar" description="Bosh sahifadagi aylanma bannerlar (rasm, GIF yoki ovozsiz video). Havola mahsulot/kategoriya bo'lsa Mini App ichida ochiladi." actions={<button className="btn btn-primary" onClick={() => setEdit({ active: true })}><Plus size={16} /> Yangi banner</button>} />
+      <LimitsBar kind="banners" />
+      <div className="grid md:grid-cols-2 gap-3">
+        {list.map((b, i) => (
+          <div key={b.id} className={`card overflow-hidden ${!b.active ? "opacity-60" : ""}`}>
+            <div className="relative h-36">{isVideoUrl(b.image) ? <video src={b.image} className="w-full h-full object-cover" muted autoPlay loop playsInline /> : <img src={b.image} className="w-full h-full object-cover" />}</div>
+            <div className="p-3 flex flex-wrap gap-1.5 items-center">
+              <span className="text-xs text-slate-500 flex-1 truncate">
+                {b.productIds?.length ? `${b.productIds.length} ta mahsulot biriktirilgan` : b.link || "havolasiz"}
+              </span>
+              <button className="btn btn-ghost !px-2 !py-1 text-xs" onClick={() => setEdit(b)}><Pencil size={14} /></button>
+              <button className="btn btn-ghost !px-2 !py-1 text-xs" onClick={() => { void move(list, i, -1); }}><ArrowUp size={14} /></button>
+              <button className="btn btn-ghost !px-2 !py-1 text-xs" onClick={() => { void move(list, i, 1); }}><ArrowDown size={14} /></button>
+              <button className="btn btn-danger !px-2 !py-1 text-xs" onClick={() => { if (confirmDialog("O'chirilsinmi?")) void api.del(`/banners/${b.id}`).then(refresh); }}><Trash2 size={14} /></button>
+            </div>
+          </div>
+        ))}
+      </div>
+      <Modal open={!!edit} onClose={() => setEdit(null)} title={edit?.id ? "Bannerni tahrirlash" : "Yangi banner"}>
+        {edit && (
+          <div className="space-y-4">
+            <ImageUpload video value={edit.image || ""} onChange={(v) => setEdit({ ...edit, image: v })} hint="Tayyor rasmni yuklang. Matn va bezaklar rasmning o'zida bo'ladi. O'lcham «Sozlamalar → Mini App → Dizayn → Bannerlar → Rasm nisbati» da tanlanadi (standart: 1200×480 px)." />
+            <div><label className="label">Bosilganda qayerga olib boradi</label><LinkPicker value={edit.link || ""} onChange={(v) => setEdit({ ...edit, link: v })} /></div>
+            {edit.productIds?.length ? (
+              <div className="rounded-xl bg-blue-50 text-blue-700 text-sm px-3 py-2">
+                Bu bannerga <b>{edit.productIds.length} ta mahsulot</b> biriktirilgan — bosilganda katalogda o'shalar chiqadi (havoladan ustun turadi).
+                <button className="ml-2 underline" onClick={() => { void api.put(`/banners/${edit.id}`, { productIds: [] }).then(() => { setEdit({ ...edit, productIds: [] }); void refresh(); }); }}>Bekor qilish</button>
+              </div>
+            ) : (
+              <div className="help">Mahsulot biriktirish: <b>Nazorat → Katalog boshqaruvi</b> da mahsulotlarni belgilab, «Bannerga biriktirish» tugmasini bosing.</div>
+            )}
+            <Toggle value={edit.active ?? true} onChange={(v) => setEdit({ ...edit, active: v })} label="Faol" />
+            <div className="flex justify-end gap-2"><button className="btn btn-ghost" onClick={() => setEdit(null)}>Bekor</button><button className="btn btn-primary" onClick={() => { void save(); }}>Saqlash</button></div>
+          </div>
+        )}
+      </Modal>
+    </div>
+  );
+}

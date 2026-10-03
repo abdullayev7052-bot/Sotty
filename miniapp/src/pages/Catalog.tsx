@@ -1,0 +1,185 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useInfiniteQuery } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
+import { motion } from "motion/react";
+import { Search, X, SlidersHorizontal, Share2 } from "lucide-react";
+import { api, type Product, type ProductPage } from "../lib/api.ts";
+import { useApp, useT } from "../store/app.ts";
+import { ProductCard } from "../components/ProductCard.tsx";
+import { ProductSheet } from "../components/ProductSheet.tsx";
+import { FilterSheet, emptyFilters, filtersCount, type CatalogFilters } from "../components/FilterSheet.tsx";
+import { Page, Skeleton, Empty, useToast, Img } from "../components/ui.tsx";
+import { useWaitlist, withWait } from "../store/waitlist.ts";
+import { haptic, shareViaTelegram } from "../lib/telegram.ts";
+
+function useDebounced<T>(v: T, ms: number): T {
+  const [d, setD] = useState(v);
+  useEffect(() => { const t = setTimeout(() => setD(v), ms); return () => clearTimeout(t); }, [v, ms]);
+  return d;
+}
+
+export function Catalog() {
+  const { t, v } = useT();
+  const data = useApp((s) => s.data)!;
+  const [params, setParams] = useSearchParams();
+  const category = params.get("category") || "";
+  const [q, setQ] = useState(params.get("q") || "");
+  const dq = useDebounced(q.trim(), 250);
+  const minChars = v<number>("catalog", "searchMinChars", 3);
+  const effQ = dq.length >= minChars ? dq : "";
+  const [open, setOpen] = useState<Product | null>(null);
+  // Bannerga biriktirilgan mahsulotlar: /catalog?ids=1,2,3
+  const [pinnedIds] = useState<string>(() => params.get("ids") || "");
+  // Filtrlar faqat shu seans davomida saqlanadi (ilovadan chiqilsa — admin sozlamasiga qaytadi)
+  // Bosh sahifadagi mini blokdan kelgan filtr: /catalog?f_cf:<id>=Qiymat
+  const [filters, setFilters] = useState<CatalogFilters>(() => {
+    const fields: Record<string, string[]> = {};
+    for (const [k, val] of params.entries()) if (k.startsWith("f_") && val) fields[k.slice(2)] = val.split("|");
+    return Object.keys(fields).length ? { ...emptyFilters, fields } : emptyFilters;
+  });
+  const [filterOpen, setFilterOpen] = useState(false);
+  const filterEnabled = v<boolean>("catalog", "filterEnabled", true);
+  // Ulashish rejimidagi admin: tanlangan kategoriyani havola qilib ulashadi
+  const shareAdmin = useApp((st) => !!st.data?.user.shareAdmin);
+  const [shareBusy, setShareBusy] = useState(false);
+  const shareCategory = async () => {
+    if (!category) return;
+    setShareBusy(true);
+    try {
+      const r = await api.post<{ url: string }>("/share", { kind: "category", categoryId: category });
+      haptic.success();
+      shareViaTelegram(r.url, cats.find((c) => c.id === category)?.name || "");
+    } catch (e) { toast((e as Error).message, "err"); } finally { setShareBusy(false); }
+  };
+  const activeFilters = filtersCount(filters);
+  const filterQs = useMemo(() => {
+    const p = new URLSearchParams();
+    for (const [k, vals] of Object.entries(filters.fields)) if (vals.length) p.set(`f_${k}`, vals.join("|"));
+    if (filters.minPrice) p.set("minPrice", String(filters.minPrice));
+    if (filters.maxPrice) p.set("maxPrice", String(filters.maxPrice));
+    if (filters.sort) p.set("sort", filters.sort);
+    const qs = p.toString();
+    return qs ? "&" + qs : "";
+  }, [filters]);
+  const wl = useWaitlist();
+  const toast = useToast((s) => s.show);
+  const cols = v<number>("catalog", "columns", 2);
+  const sentinel = useRef<HTMLDivElement>(null);
+
+  const query = useInfiniteQuery({
+    queryKey: ["products", category, effQ, filterQs, pinnedIds],
+    queryFn: ({ pageParam }) => api.get<ProductPage>(`/products?page=${pageParam}&limit=40&category=${encodeURIComponent(category)}&q=${encodeURIComponent(effQ)}${filterQs}${pinnedIds ? `&ids=${encodeURIComponent(pinnedIds)}` : ""}`),
+    initialPageParam: 1,
+    getNextPageParam: (last) => (last.hasMore ? last.page + 1 : undefined),
+    staleTime: 20000,
+  });
+  const items = useMemo(() => query.data?.pages.flatMap((p) => p.items) || [], [query.data]);
+  const total = query.data?.pages[0]?.total ?? 0;
+
+  useEffect(() => {
+    const el = sentinel.current;
+    if (!el) return;
+    const io = new IntersectionObserver((e) => { if (e[0].isIntersecting && query.hasNextPage && !query.isFetchingNextPage) query.fetchNextPage(); }, { rootMargin: "400px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [query.hasNextPage, query.isFetchingNextPage, query.fetchNextPage, query]);
+
+  // Mini blokdan kelgan f_ parametrlarini manzildan tozalaymiz (filtr o'zi saqlanib qoladi)
+  useEffect(() => {
+    const keys = [...params.keys()].filter((k) => k.startsWith("f_") || k === "ids");
+    if (!keys.length) return;
+    const p = new URLSearchParams(params);
+    for (const k of keys) p.delete(k);
+    setParams(p, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ?product=ID orqali ochish (banner havolasi)
+  useEffect(() => {
+    const pid = params.get("product");
+    if (pid) api.get<Product>(`/products/${pid}`).then(setOpen).catch(() => {});
+  }, [params]);
+
+  const onWaitlist = async (p: Product) => {
+    const next = await wl.toggle(p);
+    toast(next ? t("catalog", "notifiedLabel") : t("catalog", "notifyLabel"));
+    if (open && open.id === p.id) setOpen({ ...open, inWaitlist: next });
+  };
+  const setCategory = (id: string) => { haptic.select(); const p = new URLSearchParams(params); if (id) p.set("category", id); else p.delete("category"); setParams(p, { replace: true }); };
+
+  const cats = data.categories;
+  // Chips: barchasi + tanlangan kategoriya yo'li + shu darajadagi kategoriyalar
+  const chips = useMemo(() => {
+    const current = cats.find((c) => c.id === category);
+    const level = current ? (cats.some((c) => c.parentId === current.id) ? current.id : current.parentId) : null;
+    const siblings = cats.filter((c) => (c.parentId || null) === (level || null));
+    const trail: typeof cats = [];
+    let cur = current;
+    while (cur) { trail.unshift(cur); cur = cats.find((c) => c.id === cur!.parentId) || undefined; }
+    return { siblings, trail, level };
+  }, [cats, category]);
+
+  return (
+    <Page>
+      <div className="sticky top-0 z-[450] bg-white/95 backdrop-blur safe-top">
+        <div className="wrap pt-3 pb-2">
+          <div className="text-2xl font-bold mb-2">{t("catalog", "catalogTitle")}</div>
+          <div className="flex items-center gap-2">
+            {filterEnabled && (
+              <motion.button whileTap={{ scale: 0.92 }} onClick={() => { haptic.light(); setFilterOpen(true); }}
+                className="relative w-12 h-12 shrink-0 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-500">
+                <SlidersHorizontal size={19} />
+                {activeFilters > 0 && <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full text-[11px] font-bold text-white flex items-center justify-center" style={{ background: "var(--primary)" }}>{activeFilters}</span>}
+              </motion.button>
+            )}
+            {shareAdmin && category ? (
+              <motion.button whileTap={{ scale: 0.92 }} disabled={shareBusy} onClick={() => { void shareCategory(); }}
+                className="w-12 h-12 shrink-0 rounded-2xl bg-[var(--primary-soft)] flex items-center justify-center text-[var(--primary)]" title="Kategoriyani ulashish">
+                <Share2 size={19} />
+              </motion.button>
+            ) : null}
+            <div className="relative flex-1">
+              <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("catalog", "searchPlaceholder")} className="input pl-10 pr-10 py-3 rounded-2xl bg-slate-50 border-transparent" />
+              {q && (
+                <motion.button initial={{ scale: 0 }} animate={{ scale: 1 }} onClick={() => setQ("")} className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center"><X size={14} /></motion.button>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="flex gap-2 overflow-x-auto px-4 pb-3 hide-scroll">
+          <button className={`chip ${!category ? "active" : ""}`} onClick={() => setCategory("")}>{t("catalog", "allCategoriesLabel")}</button>
+          {chips.trail.map((c) => (
+            <button key={c.id} className={`chip ${c.id === category ? "active" : ""}`} onClick={() => setCategory(c.parentId && c.id === category ? c.parentId : c.id)}>{c.name}</button>
+          ))}
+          {chips.siblings.filter((c) => !chips.trail.some((x) => x.id === c.id)).map((c) => (
+            <button key={c.id} className={`chip ${c.id === category ? "active" : ""}`} onClick={() => setCategory(c.id)}>
+              {v<boolean>("catalog", "showCategoryImages", true) && c.image ? <Img src={c.image} className="inline-block w-5 h-5 rounded-full mr-1.5 align-middle" /> : null}{c.name}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="wrap pt-2">
+        {query.isLoading ? (
+          <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
+            {Array.from({ length: 6 }).map((_, i) => <div key={i} className="card overflow-hidden"><Skeleton className="aspect-square rounded-none" /><div className="p-3 space-y-2"><Skeleton className="h-3 w-4/5" /><Skeleton className="h-3 w-2/5" /><Skeleton className="h-8 w-full mt-2" /></div></div>)}
+          </div>
+        ) : items.length === 0 ? (
+          <Empty emoji="🔍" title={t("catalog", "emptyCatalog")} />
+        ) : (
+          <>
+            {effQ && <div className="text-xs text-slate-400 mb-2">{total} · «{effQ}»</div>}
+            <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
+              {items.map((p, i) => <ProductCard key={p.id} p={withWait(p, wl.overrides)} index={i % 40} onOpen={setOpen} onWaitlist={onWaitlist} />)}
+            </div>
+            <div ref={sentinel} className="h-6" />
+            {query.isFetchingNextPage && <div className="text-center text-xs text-slate-400 py-3">…</div>}
+          </>
+        )}
+      </div>
+      <FilterSheet open={filterOpen} onClose={() => setFilterOpen(false)} category={category} value={filters} onApply={setFilters} />
+      <ProductSheet product={open ? withWait(open, wl.overrides) : null} onClose={() => { setOpen(null); if (params.get("product")) { const p = new URLSearchParams(params); p.delete("product"); setParams(p, { replace: true }); } }} onWaitlist={onWaitlist} />
+    </Page>
+  );
+}
