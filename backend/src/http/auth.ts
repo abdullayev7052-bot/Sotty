@@ -113,24 +113,27 @@ export async function setAdminPassword(password: string) {
   await prisma.setting.upsert({ where: { shopId_key: { shopId: sid, key: "auth" } }, create: { shopId: sid, key: "auth", value: { passwordHash } }, update: { value: { passwordHash } } });
 }
 
-/** Do'konga biriktirilgan telefon raqami (login identifikatori). Bo'sh bo'lsa — hali ulanmagan. */
+/** Do'konga biriktirilgan telefon raqami (login identifikatori). Bo'sh bo'lsa — hali ulanmagan.
+ *  Asosiy (main) do'kon uchun ownerPhone bo'lmasa env.ADMIN_PHONE zaxira sifatida ishlatiladi. */
 async function shopOwnerPhone(shopId: number): Promise<string> {
   const shop = await prisma.shop.findUnique({ where: { id: shopId }, select: { ownerPhone: true } });
-  return normalizePhone(shop?.ownerPhone || "");
+  let p = normalizePhone(shop?.ownerPhone || "");
+  if (!p && shopId === DEFAULT_SHOP_ID && env.ADMIN_PHONE) p = normalizePhone(env.ADMIN_PHONE);
+  return p;
 }
 
 export async function adminLogin(req: Request, res: Response) {
   const b = (req.body || {}) as { phone?: string; password?: string };
   const password = String(b.password || "");
   const sid = currentShopId();
-  // Xavfsizlik: do'konga telefon biriktirilgan bo'lsa — login raqami aynan mos kelishi SHART.
   const storedPhone = await shopOwnerPhone(sid);
-  if (storedPhone) {
-    const given = normalizePhone(String(b.phone || ""));
-    if (!given || given !== storedPhone) { res.status(401).json({ error: "Bu telefon raqami bu do'konga biriktirilmagan" }); return; }
-  }
+  // Xavfsizlik: har do'konga telefon biriktirilgan bo'lishi SHART — bo'lmasa kirish yopiq.
+  if (!storedPhone) { res.status(403).json({ error: "Bu do'konga telefon raqami biriktirilmagan. Super-admin paneldan biriktiring (yoki main uchun ADMIN_PHONE)." }); return; }
+  // Telefon VA parol — IKKALASI ham to'g'ri bo'lishi shart. Qaysi biri xato — oshkor qilinmaydi.
+  const given = normalizePhone(String(b.phone || ""));
   const hash = await getAdminPasswordHash();
-  if (!hash || !password || !bcrypt.compareSync(password, hash)) { res.status(401).json({ error: "Parol noto'g'ri" }); return; }
+  const ok = !!hash && !!given && given === storedPhone && !!password && bcrypt.compareSync(password, hash);
+  if (!ok) { res.status(401).json({ error: "Telefon raqami yoki parol noto'g'ri" }); return; }
   // Admin faqat o'z do'koniga bog'lanadi (ko'p-do'kon izolyatsiyasi). jti — sessiya (qurilma) kaliti.
   const jti = randomUUID();
   const token = jwt.sign({ role: "admin", shopId: sid, jti }, env.JWT_SECRET, { expiresIn: "7d" });
@@ -229,8 +232,8 @@ export async function adminAuth(req: Request, res: Response, next: NextFunction)
 const SUPER_COOKIE = "super_token";
 
 export function superLogin(req: Request, res: Response) {
-  // Google sozlangan bo'lsa — parol bilan kirish o'chiq (faqat Google orqali)
-  if (env.GOOGLE_CLIENT_ID) { res.status(403).json({ error: "Faqat Google orqali kiring" }); return; }
+  // Parol har doim zaxira (break-glass) sifatida ishlaydi — Google noto'g'ri sozlansa
+  // ham platformadan butunlay chiqib qolmaslik uchun (lockout bo'lmasin).
   const password = String((req.body as { password?: string })?.password || "");
   if (!password || password !== env.SUPER_ADMIN_PASSWORD) { res.status(401).json({ error: "Parol noto'g'ri" }); return; }
   const token = jwt.sign({ role: "super" }, env.JWT_SECRET, { expiresIn: "7d" });

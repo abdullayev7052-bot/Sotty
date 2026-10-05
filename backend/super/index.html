@@ -72,6 +72,11 @@ async function renderLogin() {
   let cfg = {};
   try { cfg = await api.get("/config"); } catch {}
   if (cfg && cfg.google) { renderGoogleLogin(cfg); return; }
+  renderPasswordLogin();
+}
+
+function renderPasswordLogin() {
+  app.innerHTML = "";
   const box = el(`<div class="center"><form class="card" style="padding:28px;max-width:360px;width:100%">
     <h1 style="text-align:center;margin-bottom:4px">Sotty — Platforma</h1>
     <div class="muted" style="text-align:center;margin-bottom:16px">Eng yuqori admin paneli</div>
@@ -96,8 +101,10 @@ function renderGoogleLogin(cfg) {
     <div id="gbtn" style="display:flex;justify-content:center"></div>
     <div class="err" id="err" style="display:none;margin-top:12px"></div>
     <div class="muted" style="margin-top:14px;font-size:12px">Faqat ruxsat etilgan Google akkaunti kira oladi</div>
+    <a href="#" id="pwlink" style="display:inline-block;margin-top:12px;font-size:12px">Parol bilan kirish (zaxira)</a>
   </div></div>`);
   app.appendChild(box);
+  box.querySelector("#pwlink").onclick = (e) => { e.preventDefault(); renderPasswordLogin(); };
   const err = box.querySelector("#err");
   const onCred = async (resp) => {
     try { await api.post("/google", { credential: resp.credential }); render(); }
