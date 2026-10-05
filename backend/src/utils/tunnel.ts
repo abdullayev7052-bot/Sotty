@@ -30,6 +30,8 @@ function ngrokDomain(): string {
 
 export function startTunnelAutostart() {
   if (env.PUBLIC_URL) return;
+  // Hosting (Railway/Render/Fly) o'z domenini beradi — tunnel kerak emas
+  if (process.env.RAILWAY_PUBLIC_DOMAIN || process.env.RENDER_EXTERNAL_HOSTNAME || process.env.RENDER_EXTERNAL_URL || process.env.FLY_APP_NAME) return;
   const mode = (process.env.TUNNEL || "auto").toLowerCase();
   if (mode === "none") return;
   setTimeout(async () => {
