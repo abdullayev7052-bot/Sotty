@@ -92,11 +92,16 @@ const COOKIE_BASE = "admin_token";
  *  (umumiy bitta cookie bo'lsa, bir do'konga kirish boshqasidan chiqarib yuborardi). */
 function adminCookieName(shopId: number): string { return `${COOKIE_BASE}_${shopId}`; }
 
-export async function getAdminPasswordHash(): Promise<string> {
-  const row = await prisma.setting.findUnique({ where: { shopId_key: { shopId: currentShopId(), key: "auth" } } });
+export async function getAdminPasswordHash(): Promise<string | null> {
+  const sid = currentShopId();
+  const row = await prisma.setting.findUnique({ where: { shopId_key: { shopId: sid, key: "auth" } } });
   const v = row?.value as { passwordHash?: string } | null;
   if (v?.passwordHash) return v.passwordHash;
-  return bcrypt.hashSync(env.ADMIN_PASSWORD, 8);
+  // XAVFSIZLIK: umumiy zaxira parol YO'Q. Faqat asosiy (platforma) do'koni uchun env.ADMIN_PASSWORD
+  // zaxira bo'ladi; boshqa har bir do'kon O'Z parolига ega bo'lishi SHART (admin123 boshqa
+  // do'konlarda ishlamaydi). O'z paroli yo'q bo'lsa — kirish mumkin emas.
+  if (sid === DEFAULT_SHOP_ID) return bcrypt.hashSync(env.ADMIN_PASSWORD, 8);
+  return null;
 }
 
 export const ADMIN_PASSWORD_MIN = 6;
@@ -125,7 +130,7 @@ export async function adminLogin(req: Request, res: Response) {
     if (!given || given !== storedPhone) { res.status(401).json({ error: "Bu telefon raqami bu do'konga biriktirilmagan" }); return; }
   }
   const hash = await getAdminPasswordHash();
-  if (!password || !bcrypt.compareSync(password, hash)) { res.status(401).json({ error: "Parol noto'g'ri" }); return; }
+  if (!hash || !password || !bcrypt.compareSync(password, hash)) { res.status(401).json({ error: "Parol noto'g'ri" }); return; }
   // Admin faqat o'z do'koniga bog'lanadi (ko'p-do'kon izolyatsiyasi)
   const token = jwt.sign({ role: "admin", shopId: sid }, env.JWT_SECRET, { expiresIn: "7d" });
   res.cookie(adminCookieName(sid), token, { httpOnly: true, sameSite: "lax", maxAge: 7 * 24 * 3600 * 1000, path: "/" });
