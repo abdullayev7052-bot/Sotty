@@ -4,7 +4,7 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import type { User } from "@prisma/client";
 import { env } from "../env.ts";
-import { prisma } from "../db.ts";
+import { prisma, currentShopId } from "../db.ts";
 import { normalizeLang, getSettings } from "../settings/store.ts";
 import * as botInstance from "../bot/instance.ts";
 import { touchUser } from "../analytics/track.ts";
@@ -48,7 +48,7 @@ export async function appAuth(req: Request, res: Response, next: NextFunction) {
   }
   if (!tg) { res.status(401).json({ error: "unauthorized" }); return; }
   const tgId = BigInt(tg.id);
-  let user = await prisma.user.findUnique({ where: { telegramId: tgId } });
+  let user = await prisma.user.findFirst({ where: { telegramId: tgId } });
   if (!user) {
     user = await prisma.user.create({
       data: { telegramId: tgId, tgUsername: tg.username || null, tgFirstName: tg.first_name || null, language: getSettings().general.languageMode === "telegram" ? normalizeLang(tg.language_code?.slice(0, 2)) : normalizeLang(undefined) },
@@ -64,7 +64,7 @@ export async function appAuth(req: Request, res: Response, next: NextFunction) {
 const COOKIE = "admin_token";
 
 export async function getAdminPasswordHash(): Promise<string> {
-  const row = await prisma.setting.findUnique({ where: { key: "auth" } });
+  const row = await prisma.setting.findUnique({ where: { shopId_key: { shopId: currentShopId(), key: "auth" } } });
   const v = row?.value as { passwordHash?: string } | null;
   if (v?.passwordHash) return v.passwordHash;
   return bcrypt.hashSync(env.ADMIN_PASSWORD, 8);
@@ -72,7 +72,8 @@ export async function getAdminPasswordHash(): Promise<string> {
 
 export async function setAdminPassword(password: string) {
   const passwordHash = bcrypt.hashSync(password, 10);
-  await prisma.setting.upsert({ where: { key: "auth" }, create: { key: "auth", value: { passwordHash } }, update: { value: { passwordHash } } });
+  const sid = currentShopId();
+  await prisma.setting.upsert({ where: { shopId_key: { shopId: sid, key: "auth" } }, create: { shopId: sid, key: "auth", value: { passwordHash } }, update: { value: { passwordHash } } });
 }
 
 export async function adminLogin(req: Request, res: Response) {

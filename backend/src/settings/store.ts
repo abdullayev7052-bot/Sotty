@@ -1,4 +1,4 @@
-import { prisma } from "../db.ts";
+import { prisma, currentShopId, runWithShop, DEFAULT_SHOP_ID } from "../db.ts";
 import { env } from "../env.ts";
 import { buildDefaults, settingsSchema, type Lang, type LText } from "./schema.ts";
 import { log } from "../logger.ts";
@@ -82,7 +82,15 @@ export interface StoreDef {
 }
 
 const defaults = buildDefaults();
-let cache: AppSettings | null = null;
+/** Do'kon (shopId) bo'yicha sozlamalar keshi */
+const cacheByShop = new Map<number, AppSettings>();
+
+/** Faqat standart qiymatlardan iborat sozlama (kesh bo'sh bo'lsa zaxira) */
+function defaultsSettings(): AppSettings {
+  const merged: Record<string, Record<string, unknown>> = {};
+  for (const section of settingsSchema) merged[section.key] = deepMerge(defaults[section.key], {});
+  return merged as unknown as AppSettings;
+}
 
 function deepMerge(base: Record<string, unknown>, over: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = { ...base };
@@ -96,26 +104,33 @@ function deepMerge(base: Record<string, unknown>, over: Record<string, unknown>)
   return out;
 }
 
-/** Bazadan barcha sozlamalarni o'qib, standart qiymatlar bilan birlashtiradi */
-export async function loadSettings(): Promise<AppSettings> {
-  const rows = await prisma.setting.findMany();
+/** Bazadan do'kon sozlamalarini o'qib, standart qiymatlar bilan birlashtiradi */
+export async function loadSettings(shopId?: number): Promise<AppSettings> {
+  const sid = shopId ?? currentShopId();
+  const rows = await runWithShop(sid, () => prisma.setting.findMany());
   const merged: Record<string, Record<string, unknown>> = {};
   for (const section of settingsSchema) {
     const row = rows.find((r) => r.key === section.key);
     merged[section.key] = deepMerge(defaults[section.key], (row?.value as Record<string, unknown>) || {});
   }
-  cache = merged as unknown as AppSettings;
-  return cache;
+  const s = merged as unknown as AppSettings;
+  cacheByShop.set(sid, s);
+  return s;
 }
 
 export function getSettings(): AppSettings {
-  if (!cache) throw new Error("Sozlamalar hali yuklanmagan");
-  return cache;
+  const sid = currentShopId();
+  const s = cacheByShop.get(sid) || cacheByShop.get(DEFAULT_SHOP_ID);
+  if (s) return s;
+  // Hali yuklanmagan bo'lsa — fon rejimida yuklaymiz, hozircha standart qiymatlar
+  void loadSettings(sid).catch(() => {});
+  return defaultsSettings();
 }
 
 export async function updateSection(section: string, patch: Record<string, unknown>): Promise<AppSettings> {
   if (!defaults[section]) throw new Error("Noma'lum bo'lim: " + section);
-  const row = await prisma.setting.findUnique({ where: { key: section } });
+  const sid = currentShopId();
+  const row = await prisma.setting.findUnique({ where: { shopId_key: { shopId: sid, key: section } } });
   const current = (row?.value as Record<string, unknown>) || {};
   const next = { ...current };
   for (const [k, v] of Object.entries(patch)) {
@@ -127,9 +142,9 @@ export async function updateSection(section: string, patch: Record<string, unkno
     }
     next[k] = v;
   }
-  await prisma.setting.upsert({ where: { key: section }, create: { key: section, value: next as object }, update: { value: next as object } });
-  const s = await loadSettings();
-  log.info(`Sozlamalar yangilandi: ${section}`);
+  await prisma.setting.upsert({ where: { shopId_key: { shopId: sid, key: section } }, create: { shopId: sid, key: section, value: next as object }, update: { value: next as object } });
+  const s = await loadSettings(sid);
+  log.info(`Sozlamalar yangilandi (do'kon ${sid}): ${section}`);
   return s;
 }
 

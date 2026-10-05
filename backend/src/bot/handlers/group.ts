@@ -1,6 +1,6 @@
 import type { Bot } from "grammy";
 import type { MyContext } from "../context.ts";
-import { prisma } from "../../db.ts";
+import { prisma, currentShopId } from "../../db.ts";
 import { env } from "../../env.ts";
 import { getSettings } from "../../settings/store.ts";
 import { applyStage, nextStages, type Stage } from "../../erp/orders.ts";
@@ -11,12 +11,12 @@ async function isStaff(ctx: MyContext, chatId: string): Promise<boolean> {
   if (!from) return false;
   const tg = String(from.id);
   if (env.ADMIN_TELEGRAM_ID && tg === env.ADMIN_TELEGRAM_ID) return true;
-  const staff = await prisma.staff.findUnique({ where: { telegramId: tg } });
+  const staff = await prisma.staff.findFirst({ where: { telegramId: tg } });
   if (staff) return true;
   const mode = getSettings().bot.staffMode;
   if (mode === "list") return false;
   // "group" rejimi: ruxsat etilgan guruh a'zosi
-  const g = await prisma.adminGroup.findUnique({ where: { chatId } });
+  const g = await prisma.adminGroup.findFirst({ where: { chatId } });
   return !!g?.enabled;
 }
 
@@ -30,7 +30,7 @@ export function registerGroup(bot: Bot<MyContext>) {
     if (status === "member" || status === "administrator") {
       const byAdmin = env.ADMIN_TELEGRAM_ID && String(ctx.from.id) === env.ADMIN_TELEGRAM_ID;
       const g = await prisma.adminGroup.upsert({
-        where: { chatId },
+        where: { shopId_chatId: { shopId: currentShopId(), chatId } },
         create: { chatId, title: chat.title, enabled: !!byAdmin },
         update: { title: chat.title, ...(byAdmin ? { enabled: true } : {}) },
       });

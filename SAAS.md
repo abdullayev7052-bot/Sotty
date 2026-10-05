@@ -15,17 +15,19 @@ Arxitektura: **bitta baza, qatorli ko'p-ijara (row-level multitenancy)** + bitta
 - `/super` — alohida platforma paneli (do'konlar ro'yxati, qo'shish/tahrirlash, to'xtatish).
 - Mavjud bir-do'konli tizim buzilmaydi (hamma narsa ishlayveradi).
 
-### ⏳ 6.2 — Ma'lumot izolyatsiyasi (shopId scoping)
-- Tenant jadvallariga `shopId` qo'shish: User, Product, Category, Order, StockMovement,
+### ✅ 6.2 — Ma'lumot izolyatsiyasi (shopId scoping) — BAJARILDI
+- Tenant jadvallariga `shopId` qo'shildi (User, Product, Category, Order, StockMovement,
   CashTransaction, Supplier, Promotion, Setting, Story, Banner, HomeBlock, AdminGroup,
-  Staff, Waitlist, Favorite, CartItem, Share, AppEvent, ActivityLog, SyncState.
-- Mavjud ma'lumotni "1-do'kon"ga biriktirish (bootstrap).
-- Har bir so'rovda do'konni aniqlash (tenant resolver):
-  - **Admin/Mini App:** domen yoki slug yoki JWT ichidagi shopId orqali.
-  - **Bot:** qaysi bot tokeni update qabul qilganiga qarab.
-- Barcha `prisma.*` so'rovlarini `shopId` bilan cheklash (markazlashgan yordamchi: `db(shopId)`),
-  settings'ni do'kon bo'yicha o'qish/yozish.
-- `Setting` kaliti: `shopId + key`.
+  Staff, Waitlist, Favorite, CartItem, AppEvent, ActivityLog). Mavjud ma'lumot `default(1)`
+  orqali "1-do'kon"ga biriktiriladi.
+- `User/Staff/AdminGroup/Setting` — kompozit unique (`shopId` bilan).
+- **Markazlashgan avtomatik ajratish:** `db.ts`da Prisma kengaytmasi har bir o'qish/yozishga
+  `shopId`ni avtomatik qo'shadi (AsyncLocalStorage konteksti `currentShopId()` orqali).
+  Natijada so'rovlarda qo'lda filtr yozish shart emas — unutib qoldirish xavfi yo'q.
+- Sozlamalar do'kon bo'yicha (`getSettings()` kontekstdan o'qiydi, kesh do'kon bo'yicha).
+- Bootstrap do'kon (id=1) startup/seedda yaratiladi.
+- Hozircha barcha so'rovlar `currentShopId()` = 1 (kontekst o'rnatilmagan) — mavjud tizim
+  bir xil ishlaydi. Haqiqiy per-so'rov do'kon aniqlash (domen/slug/bot) — 6.3da ulanadi.
 
 ### ⏳ 6.3 — Ko'p-bot runtime + ro'yxatdan o'tish
 - Har bir faol do'kon tokeni uchun alohida grammY bot (bitta jarayonda).

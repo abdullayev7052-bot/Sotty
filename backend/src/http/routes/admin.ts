@@ -5,7 +5,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
-import { prisma } from "../../db.ts";
+import { prisma, currentShopId } from "../../db.ts";
 import { env } from "../../env.ts";
 import { adminAuth, adminLogin, adminLogout, setAdminPassword } from "../auth.ts";
 import { settingsSchema } from "../../settings/schema.ts";
@@ -701,7 +701,7 @@ adminRouter.get("/field-values", async (req, res) => {
 adminRouter.get("/groups", async (_req, res) => { res.json(await prisma.adminGroup.findMany({ orderBy: { createdAt: "desc" } })); });
 adminRouter.post("/groups", async (req, res) => {
   const b = z.object({ chatId: z.string().trim().min(3), title: z.string().optional() }).parse(req.body);
-  const g = await prisma.adminGroup.upsert({ where: { chatId: b.chatId }, create: { chatId: b.chatId, title: b.title || null, enabled: true }, update: { enabled: true, title: b.title || undefined } });
+  const g = await prisma.adminGroup.upsert({ where: { shopId_chatId: { shopId: currentShopId(), chatId: b.chatId } }, create: { chatId: b.chatId, title: b.title || null, enabled: true }, update: { enabled: true, title: b.title || undefined } });
   res.json(g);
 });
 adminRouter.put("/groups/:id", async (req, res) => {
@@ -728,7 +728,7 @@ const staffBody = z.object({
 adminRouter.post("/staff", async (req, res) => {
   const b = staffBody.parse(req.body);
   const row = await prisma.staff.upsert({
-    where: { telegramId: b.telegramId },
+    where: { shopId_telegramId: { shopId: currentShopId(), telegramId: b.telegramId } },
     create: { telegramId: b.telegramId, name: b.name || null, username: b.username || null, role: b.role || "staff", shareAdmin: b.shareAdmin ?? false },
     update: { name: b.name || undefined, username: b.username || undefined, role: b.role || undefined, shareAdmin: b.shareAdmin },
   });
@@ -740,7 +740,7 @@ adminRouter.post("/staff", async (req, res) => {
 adminRouter.put("/staff/:id", async (req, res) => {
   const b = staffBody.partial().parse(req.body);
   if (b.telegramId) {
-    const busy = await prisma.staff.findUnique({ where: { telegramId: b.telegramId }, select: { id: true } });
+    const busy = await prisma.staff.findFirst({ where: { telegramId: b.telegramId }, select: { id: true } });
     if (busy && busy.id !== Number(req.params.id)) { res.status(400).json({ error: "Bu Telegram ID allaqachon ro'yxatda bor" }); return; }
   }
   const row = await prisma.staff.update({

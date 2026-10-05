@@ -19,7 +19,7 @@ export async function userMiddleware(ctx: MyContext, next: NextFunction) {
   const from = ctx.from;
   if (!from || from.is_bot) return next();
   const tgId = BigInt(from.id);
-  let user = await prisma.user.findUnique({ where: { telegramId: tgId } });
+  let user = await prisma.user.findFirst({ where: { telegramId: tgId } });
   const isNew = !user;
   if (!user) {
     user = await prisma.user.create({

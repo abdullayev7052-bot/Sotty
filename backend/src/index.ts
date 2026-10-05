@@ -1,5 +1,5 @@
 import { env } from "./env.ts";
-import { prisma } from "./db.ts";
+import { prisma, DEFAULT_SHOP_ID } from "./db.ts";
 import { log, errMsg } from "./logger.ts";
 import { loadSettings } from "./settings/store.ts";
 import { refreshShareAdmins } from "./erp/share.ts";
@@ -13,7 +13,9 @@ import { pruneEvents } from "./analytics/track.ts";
 async function main() {
   log.info("🚀 Sotty ishga tushmoqda...");
   await prisma.$connect();
-  await loadSettings();
+  // Asosiy (bootstrap) do'kon mavjudligini ta'minlash — mavjud ma'lumot shunga tegishli
+  try { await prisma.shop.upsert({ where: { id: DEFAULT_SHOP_ID }, create: { id: DEFAULT_SHOP_ID, slug: "main", name: "Asosiy do'kon" }, update: {} }); } catch (e) { log.warn("bootstrap shop", errMsg(e)); }
+  await loadSettings(DEFAULT_SHOP_ID);
   await refreshShareAdmins();
 
   await listen();

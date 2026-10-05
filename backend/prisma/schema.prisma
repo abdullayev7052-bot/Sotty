@@ -11,12 +11,13 @@ datasource db {
 /// Izoh: bitoCustomerId/bitoCategoryId maydonlari eski nomlar — endi ichki, ishlatilmaydi (keyingi migratsiyada olib tashlanadi).
 model User {
   id             Int      @id @default(autoincrement())
-  telegramId     BigInt   @unique
+  shopId         Int      @default(1)
+  telegramId     BigInt
   tgUsername     String?
   tgFirstName    String?
   name           String?
   phone          String?
-  bitoCustomerId String?  @unique
+  bitoCustomerId String?
   /// Bito'dagi mijoz kategoriyasi (xabar yuborilgach shu qiymat qaytariladi)
   bitoCategoryId String?
   language       String   @default("uz")
@@ -39,12 +40,16 @@ model User {
   favorites Favorite[]
   cart      CartItem[]
   cashTx    CashTransaction[]
+
+  @@unique([shopId, telegramId])
+  @@index([shopId])
 }
 
 /// Mahsulot (ichki katalog). Admin paneldan qo'lda qo'shiladi/tahrirlanadi.
 /// Izoh: bitoId — ichki barqaror mahsulot kodi (nom tarixiy; keyingi migratsiyada "code" ga o'zgartiriladi).
 model Product {
   id             Int      @id @default(autoincrement())
+  shopId         Int      @default(1)
   bitoId         String   @unique
   name           String
   searchKey      String   @default("")
@@ -94,6 +99,7 @@ model Product {
   cartItems CartItem[]
   movements StockMovement[]
 
+  @@index([shopId])
   @@index([categoryBitoId])
   @@index([hidden, sortOrder])
   @@index([parentBitoId])
@@ -102,16 +108,20 @@ model Product {
 /// Yetkazib beruvchi (xaridlar uchun)
 model Supplier {
   id        Int      @id @default(autoincrement())
+  shopId    Int      @default(1)
   name      String
   phone     String?
   note      String?
   createdAt DateTime @default(now())
   movements StockMovement[]
+
+  @@index([shopId])
 }
 
 /// Ombor harakati (kirim/chiqim/tuzatish) — qoldiqning to'liq jurnali
 model StockMovement {
   id         Int      @id @default(autoincrement())
+  shopId     Int      @default(1)
   productId  Int
   product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   /// in = kirim (xarid), out = chiqim (sotuv), adjust = tuzatish (inventarizatsiya)
@@ -135,6 +145,7 @@ model StockMovement {
   createdBy  String?
   createdAt  DateTime @default(now())
 
+  @@index([shopId, createdAt])
   @@index([productId, createdAt])
   @@index([reason, createdAt])
   @@index([createdAt])
@@ -166,6 +177,7 @@ model Shop {
 /// Aksiya / chegirma qoidasi (savat darajasida qo'llanadi)
 model Promotion {
   id         Int       @id @default(autoincrement())
+  shopId     Int       @default(1)
   name       String
   /// percent = foizli, fixed = qat'iy summa
   type       String    @default("percent")
@@ -179,11 +191,14 @@ model Promotion {
   endsAt     DateTime?
   sortOrder  Int       @default(0)
   createdAt  DateTime  @default(now())
+
+  @@index([shopId])
 }
 
 /// Kassa harakati (pul kirim/chiqim) — kassa qoldig'ining to'liq jurnali
 model CashTransaction {
   id          Int      @id @default(autoincrement())
+  shopId      Int      @default(1)
   /// income = kirim (pul keldi), expense = chiqim (pul chiqdi)
   kind        String
   amount      Float    @default(0)
@@ -202,6 +217,7 @@ model CashTransaction {
   createdBy   String?
   createdAt   DateTime @default(now())
 
+  @@index([shopId, createdAt])
   @@index([kind, createdAt])
   @@index([category, createdAt])
   @@index([userId, createdAt])
@@ -211,6 +227,7 @@ model CashTransaction {
 /// Kategoriya (ichki katalog). bitoId — ichki barqaror kategoriya kodi.
 model Category {
   id         Int     @id @default(autoincrement())
+  shopId     Int     @default(1)
   bitoId     String  @unique
   name       String
   parentId   String?
@@ -220,11 +237,14 @@ model Category {
   sortOrder  Int     @default(0)
   isDeleted  Boolean @default(false)
   syncedAt   DateTime @default(now())
+
+  @@index([shopId])
 }
 
 /// Mini App yoki bot orqali berilgan buyurtma (ichki)
 model Order {
   id               Int      @id @default(autoincrement())
+  shopId           Int      @default(1)
   bitoId           String?  @unique
   number           String?
   userId           Int
@@ -266,6 +286,7 @@ model Order {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
+  @@index([shopId])
   @@index([userId])
   @@index([stateKey])
 }
@@ -273,6 +294,7 @@ model Order {
 /// "Kelganda eslating" — kutilayotgan mahsulotlar
 model Waitlist {
   id         Int       @id @default(autoincrement())
+  shopId     Int       @default(1)
   userId     Int
   user       User      @relation(fields: [userId], references: [id])
   productId  Int
@@ -286,6 +308,7 @@ model Waitlist {
 /// Instagram uslubidagi storis (doira). Har birida bir nechta slayd bo'lishi mumkin.
 model Story {
   id        Int      @id @default(autoincrement())
+  shopId    Int      @default(1)
   title     String
   cover     String
   active    Boolean  @default(true)
@@ -293,6 +316,8 @@ model Story {
   expiresAt DateTime?
   createdAt DateTime @default(now())
   slides    StorySlide[]
+
+  @@index([shopId])
 }
 
 model StorySlide {
@@ -310,6 +335,7 @@ model StorySlide {
 /// Bosh sahifadagi aylanma bannerlar
 model Banner {
   id        Int      @id @default(autoincrement())
+  shopId    Int      @default(1)
   image     String
   title     String?
   subtitle  String?
@@ -320,34 +346,47 @@ model Banner {
   createdAt DateTime @default(now())
   /// Bannerga biriktirilgan mahsulotlar (bosilganda katalog shular bo'yicha filtrlanadi)
   productIds Json    @default("[]")
+
+  @@index([shopId])
 }
 
 /// Admin paneldan boshqariladigan barcha sozlamalar (bo'limlar bo'yicha JSON)
 model Setting {
-  key       String   @id
+  shopId    Int      @default(1)
+  key       String
   value     Json
   updatedAt DateTime @updatedAt
+
+  @@id([shopId, key])
 }
 
 /// Buyurtmalar tushadigan Telegram guruhlari
 model AdminGroup {
   id        Int      @id @default(autoincrement())
-  chatId    String   @unique
+  shopId    Int      @default(1)
+  chatId    String
   title     String?
   enabled   Boolean  @default(false)
   createdAt DateTime @default(now())
+
+  @@unique([shopId, chatId])
+  @@index([shopId])
 }
 
 /// Buyurtma holatini o'zgartira oladigan xodimlar
 model Staff {
   id         Int      @id @default(autoincrement())
-  telegramId String   @unique
+  shopId     Int      @default(1)
+  telegramId String
   name       String?
   username   String?
   role       String   @default("staff") // admin | staff
   /// Ulashish rejimi: Mini App'da faqat katalog+savatcha, buyurtma bermaydi, savatni ulashadi
   shareAdmin Boolean  @default(false)
   createdAt  DateTime @default(now())
+
+  @@unique([shopId, telegramId])
+  @@index([shopId])
 }
 
 /// Takroriy bildirishnomalarni oldini olish (savdo cheki, to'lov va h.k.)
@@ -366,11 +405,13 @@ model SyncState {
 /// Bot faoliyati jurnali (admin panelda ko'rish uchun)
 model ActivityLog {
   id        Int      @id @default(autoincrement())
+  shopId    Int      @default(1)
   type      String
   message   String
   meta      Json?
   createdAt DateTime @default(now())
 
+  @@index([shopId, createdAt])
   @@index([createdAt])
 }
 
@@ -386,6 +427,7 @@ model Upload {
 /// Analitika hodisalari (Mini App/bot foydalanuvchi harakatlari): app_open, product_view, search, add_to_cart, ...
 model AppEvent {
   id        Int      @id @default(autoincrement())
+  shopId    Int      @default(1)
   userId    Int?
   user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   name      String
@@ -394,6 +436,7 @@ model AppEvent {
   meta      Json?
   createdAt DateTime @default(now())
 
+  @@index([shopId, createdAt])
   @@index([name, createdAt])
   @@index([userId, createdAt])
   @@index([createdAt])
@@ -402,6 +445,7 @@ model AppEvent {
 /// "Istaklarim" (Favourites) — mijoz yoqtirgan mahsulotlar
 model Favorite {
   id        Int      @id @default(autoincrement())
+  shopId    Int      @default(1)
   userId    Int
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   productId Int
@@ -409,12 +453,14 @@ model Favorite {
   createdAt DateTime @default(now())
 
   @@unique([userId, productId])
+  @@index([shopId])
   @@index([productId])
 }
 
 /// Mini App savatchasining serverdagi nusxasi — "necha kishining savatida" ko'rsatkichi uchun
 model CartItem {
   id        Int      @id @default(autoincrement())
+  shopId    Int      @default(1)
   userId    Int
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   productId Int
@@ -423,6 +469,7 @@ model CartItem {
   updatedAt DateTime @updatedAt
 
   @@unique([userId, productId])
+  @@index([shopId])
   @@index([productId, updatedAt])
 }
 
@@ -430,6 +477,7 @@ model CartItem {
 /// va mini bloklar ("Mualliflar", "Nashriyotlar") — qo'shimcha maydon qiymatlari bo'yicha
 model HomeBlock {
   id        Int      @id @default(autoincrement())
+  shopId    Int      @default(1)
   /// products — mahsulotlar qatori; chips — rasmli mini bloklar
   kind      String   @default("products")
   /// manual (qo'lda tanlangan) | featured | new | popular | field (qo'shimcha maydon qiymatlari)
@@ -444,6 +492,8 @@ model HomeBlock {
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
   items     HomeBlockItem[]
+
+  @@index([shopId])
 }
 
 model HomeBlockItem {
