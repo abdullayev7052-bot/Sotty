@@ -156,6 +156,11 @@ export async function applyStage(order: Order, stage: Stage, by: StageActor, _op
     data: { stateKey: stage, stateName: null, history: history as unknown as object },
   });
   await activity("order_stage", `Buyurtma #${order.number}: ${prev} → ${stage} (${by.type === "staff" ? by.name : by.type})`);
+  // Buyurtma bajarilganda ombordan avtomatik chiqim (bir marta)
+  if (stage === "done" && !updated.stockApplied) {
+    const { applyOrderStock } = await import("./warehouse.ts");
+    await applyOrderStock(updated);
+  }
   events.emitApp("order:stage", updated, prev, by);
   return updated;
 }

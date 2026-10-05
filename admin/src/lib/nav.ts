@@ -23,6 +23,7 @@ export const NAV: NavSection[] = [
   ] },
   { key: "control", title: "control", items: [
     { key: "catalog", label: "catalog", icon: "package", to: "/catalog", keywords: ["mahsulot", "kategoriya", "yashirish", "tavsiya", "chegirma", "tartib", "товары", "products", "nazorat"] },
+    { key: "warehouse", label: "warehouse", icon: "warehouse", to: "/warehouse", keywords: ["ombor", "kirim", "chiqim", "xarid", "sotuv", "qoldiq", "tan narx", "yetkazib beruvchi", "inventarizatsiya", "склад", "приход", "расход", "stock", "inventory"] },
     { key: "waitlist", label: "waitlist", icon: "bell", to: "/waitlist", keywords: ["kelganda eslating", "kutilmoqda", "ожидаемые", "istaklarim", "like", "yurakcha", "favourites", "избранное"] },
   ] },
   { key: "integration", title: "integration", items: [

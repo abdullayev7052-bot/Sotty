@@ -25,6 +25,7 @@ import { buildReport, presetRange, ymd, type Group } from "../../analytics/repor
 import { valueOf } from "../../erp/productFields.ts";
 import { listStores } from "../../erp/stores.ts";
 import { buildSearchKey } from "../../utils/search.ts";
+import { recordMovement, recordPurchase, warehouseSummary } from "../../erp/warehouse.ts";
 
 export const adminRouter = Router();
 
@@ -186,6 +187,76 @@ adminRouter.delete("/catalog/categories/:id", async (req, res) => {
   invalidateProductCache();
   res.json({ ok: true });
 });
+
+// ---------- Ombor (kirim/chiqim) ----------
+adminRouter.get("/warehouse/summary", async (_req, res) => { res.json(await warehouseSummary()); });
+
+/** Ombor uchun mahsulotlar ro'yxati (tanlash + qoldiq/tan narx) */
+adminRouter.get("/warehouse/products", async (req, res) => {
+  const q = String(req.query.q || "").trim().toLowerCase();
+  const products = await prisma.product.findMany({ where: { isDeleted: false }, orderBy: { name: "asc" }, select: { id: true, name: true, sku: true, stock: true, price: true, costPrice: true, measure: true } });
+  const list = q ? products.filter((p) => p.name.toLowerCase().includes(q) || (p.sku || "").toLowerCase().includes(q)) : products;
+  res.json(list.slice(0, 500));
+});
+
+/** Ombor harakatlari tarixi (filtr: productId, reason, type) */
+adminRouter.get("/warehouse/movements", async (req, res) => {
+  const where: Record<string, unknown> = {};
+  if (req.query.productId) where.productId = Number(req.query.productId);
+  if (req.query.reason) where.reason = String(req.query.reason);
+  if (req.query.type) where.type = String(req.query.type);
+  const limit = Math.min(500, Math.max(1, Number(req.query.limit || 100)));
+  const rows = await prisma.stockMovement.findMany({ where, orderBy: { createdAt: "desc" }, take: limit, include: { product: { select: { name: true, measure: true } }, supplier: { select: { name: true } } } });
+  res.json(rows.map((m) => ({
+    id: m.id, productId: m.productId, product: m.product?.name || `#${m.productId}`, measure: m.product?.measure || null,
+    type: m.type, reason: m.reason, qty: m.qty, unitPrice: m.unitPrice, total: m.total, balance: m.balance,
+    supplier: m.supplier?.name || null, orderId: m.orderId, note: m.note, createdBy: m.createdBy, createdAt: m.createdAt,
+  })));
+});
+
+/** Bitta harakat: kirim / chiqim / tuzatish */
+adminRouter.post("/warehouse/movement", async (req, res) => {
+  const b = z.object({
+    productId: z.number().int(),
+    type: z.enum(["in", "out", "adjust"]),
+    qty: z.number(),
+    unitPrice: z.number().min(0).optional(),
+    reason: z.enum(["manual", "purchase", "sale", "order"]).optional(),
+    supplierId: z.number().int().nullable().optional(),
+    note: z.string().max(500).nullable().optional(),
+  }).parse(req.body);
+  try {
+    const mv = await recordMovement({ ...b, createdBy: "admin" });
+    invalidateProductCache();
+    res.json({ ok: true, id: mv.id, balance: mv.balance });
+  } catch (e) { res.status(400).json({ error: errMsg(e) }); }
+});
+
+/** Ko'p qatorli xarid (kirim) */
+adminRouter.post("/warehouse/purchase", async (req, res) => {
+  const b = z.object({
+    supplierId: z.number().int().nullable().optional(),
+    note: z.string().max(500).nullable().optional(),
+    rows: z.array(z.object({ productId: z.number().int(), qty: z.number().positive(), unitPrice: z.number().min(0) })).min(1).max(200),
+  }).parse(req.body);
+  try {
+    const created = await recordPurchase(b.rows, { supplierId: b.supplierId ?? null, note: b.note ?? null, createdBy: "admin" });
+    invalidateProductCache();
+    res.json({ ok: true, count: created.length });
+  } catch (e) { res.status(400).json({ error: errMsg(e) }); }
+});
+
+// ---------- Yetkazib beruvchilar ----------
+adminRouter.get("/suppliers", async (_req, res) => { res.json(await prisma.supplier.findMany({ orderBy: { name: "asc" } })); });
+adminRouter.post("/suppliers", async (req, res) => {
+  const b = z.object({ name: z.string().trim().min(1).max(120), phone: z.string().max(40).nullable().optional(), note: z.string().max(300).nullable().optional() }).parse(req.body);
+  res.json(await prisma.supplier.create({ data: { name: b.name, phone: b.phone || null, note: b.note || null } }));
+});
+adminRouter.put("/suppliers/:id", async (req, res) => {
+  const b = z.object({ name: z.string().trim().min(1).max(120).optional(), phone: z.string().max(40).nullable().optional(), note: z.string().max(300).nullable().optional() }).parse(req.body);
+  res.json(await prisma.supplier.update({ where: { id: Number(req.params.id) }, data: { name: b.name, phone: b.phone === undefined ? undefined : (b.phone || null), note: b.note === undefined ? undefined : (b.note || null) } }));
+});
+adminRouter.delete("/suppliers/:id", async (req, res) => { await prisma.supplier.delete({ where: { id: Number(req.params.id) } }); res.json({ ok: true }); });
 adminRouter.post("/public-url", async (req, res) => {
   const url = String((req.body as { url?: string })?.url || "").trim();
   if (url && !/^https:\/\//.test(url)) { res.status(400).json({ error: "Manzil https:// bilan boshlanishi kerak" }); return; }

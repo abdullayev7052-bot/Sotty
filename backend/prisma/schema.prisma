@@ -48,6 +48,8 @@ model Product {
   image          String?
   images         Json     @default("[]")
   price          Float    @default(0)
+  /// Tan narx (oxirgi xarid narxi) — foyda hisobi uchun
+  costPrice      Float    @default(0)
   priceId        String?
   currencyId     String?
   stock          Float    @default(0)
@@ -87,10 +89,52 @@ model Product {
   waitlist  Waitlist[]
   favorites Favorite[]
   cartItems CartItem[]
+  movements StockMovement[]
 
   @@index([categoryBitoId])
   @@index([hidden, sortOrder])
   @@index([parentBitoId])
+}
+
+/// Yetkazib beruvchi (xaridlar uchun)
+model Supplier {
+  id        Int      @id @default(autoincrement())
+  name      String
+  phone     String?
+  note      String?
+  createdAt DateTime @default(now())
+  movements StockMovement[]
+}
+
+/// Ombor harakati (kirim/chiqim/tuzatish) — qoldiqning to'liq jurnali
+model StockMovement {
+  id         Int      @id @default(autoincrement())
+  productId  Int
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  /// in = kirim (xarid), out = chiqim (sotuv), adjust = tuzatish (inventarizatsiya)
+  type       String
+  /// manual | purchase | sale | order
+  reason     String   @default("manual")
+  /// Harakat miqdori (adjust uchun — farq, manfiy bo'lishi mumkin)
+  qty        Float    @default(0)
+  /// Birlik narxi (kirimda — tan narx, chiqimda — sotuv narxi)
+  unitPrice  Float    @default(0)
+  /// Jami summa (qty * unitPrice)
+  total      Float    @default(0)
+  /// Harakatdan keyingi qoldiq (tarix uchun)
+  balance    Float    @default(0)
+  supplierId Int?
+  supplier   Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  /// Buyurtmaga bog'langan bo'lsa (avtomatik chiqim)
+  orderId    Int?
+  note       String?
+  /// Kim yaratdi (admin/telegram id yoki "tizim")
+  createdBy  String?
+  createdAt  DateTime @default(now())
+
+  @@index([productId, createdAt])
+  @@index([reason, createdAt])
+  @@index([createdAt])
 }
 
 /// Kategoriya (ichki katalog). bitoId — ichki barqaror kategoriya kodi.
@@ -139,6 +183,8 @@ model Order {
   paymentProvider  String?
   isPaid           Boolean  @default(false)
   paidAt           DateTime?
+  /// Buyurtma bajarilganda ombordan chiqim qilinganmi (ikki marta yechmaslik uchun)
+  stockApplied     Boolean  @default(false)
   payments         Payment[]
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
