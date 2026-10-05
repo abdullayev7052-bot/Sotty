@@ -8,6 +8,7 @@ import { getSettings } from "../settings/store.ts";
 import { log } from "../logger.ts";
 import { appRouter } from "./routes/app.ts";
 import { adminRouter } from "./routes/admin.ts";
+import { superRouter } from "./routes/super.ts";
 import { paymeHandler } from "../payments/payme.ts";
 
 export function createServer() {
@@ -27,6 +28,10 @@ export function createServer() {
   app.get("/api/health", (_req, res) => { res.json({ ok: true, time: new Date().toISOString() }); });
   app.use("/api/app", appRouter);
   app.use("/api/admin", adminRouter);
+  app.use("/api/super", superRouter);
+
+  // Eng yuqori (platforma) admin paneli — alohida sahifa
+  app.get(["/super", "/super/"], (_req, res) => { res.sendFile(path.join(env.BACKEND_DIR, "super", "index.html")); });
 
   // Yuklangan fayllar: avval disk, keyin baza
   app.use("/uploads", express.static(env.UPLOADS_DIR, { maxAge: "7d", immutable: true }));

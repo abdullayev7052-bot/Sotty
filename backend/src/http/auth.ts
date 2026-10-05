@@ -99,3 +99,31 @@ export function adminAuth(req: Request, res: Response, next: NextFunction) {
     res.status(401).json({ error: "unauthorized" });
   }
 }
+
+// ---------------- Super-admin (platforma) ----------------
+
+const SUPER_COOKIE = "super_token";
+
+export function superLogin(req: Request, res: Response) {
+  const password = String((req.body as { password?: string })?.password || "");
+  if (!password || password !== env.SUPER_ADMIN_PASSWORD) { res.status(401).json({ error: "Parol noto'g'ri" }); return; }
+  const token = jwt.sign({ role: "super" }, env.JWT_SECRET, { expiresIn: "7d" });
+  res.cookie(SUPER_COOKIE, token, { httpOnly: true, sameSite: "lax", maxAge: 7 * 24 * 3600 * 1000, path: "/" });
+  res.json({ ok: true });
+}
+
+export function superLogout(_req: Request, res: Response) {
+  res.clearCookie(SUPER_COOKIE, { path: "/" });
+  res.json({ ok: true });
+}
+
+export function superAuth(req: Request, res: Response, next: NextFunction) {
+  const token = (req as Request & { cookies?: Record<string, string> }).cookies?.[SUPER_COOKIE] || (req.header("authorization") || "").replace(/^Bearer /, "");
+  try {
+    const payload = jwt.verify(token, env.JWT_SECRET) as { role?: string };
+    if (payload.role !== "super") throw new Error("no");
+    next();
+  } catch {
+    res.status(401).json({ error: "unauthorized" });
+  }
+}

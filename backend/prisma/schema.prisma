@@ -140,6 +140,29 @@ model StockMovement {
   @@index([createdAt])
 }
 
+/// Do'kon (tenant) — SaaS ko'p-do'kon tizimi uchun. Har bir do'kon o'z boti,
+/// mahsulotlari va sozlamalariga ega bo'ladi (ma'lumot izolyatsiyasi keyingi bosqichda).
+model Shop {
+  id             Int       @id @default(autoincrement())
+  /// URL/kalit (masalan "kokand-dokon") — noyob
+  slug           String    @unique
+  name           String
+  ownerName      String?
+  ownerPhone     String?
+  /// Do'konning Telegram bot tokeni (BotFather)
+  botToken       String?
+  botUsername    String?
+  /// Tarif: free | basic | pro
+  tariff         String    @default("free")
+  active         Boolean   @default(true)
+  suspended      Boolean   @default(false)
+  note           String?
+  /// Tarif qachongacha to'langan
+  paidUntil      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
 /// Aksiya / chegirma qoidasi (savat darajasida qo'llanadi)
 model Promotion {
   id         Int       @id @default(autoincrement())

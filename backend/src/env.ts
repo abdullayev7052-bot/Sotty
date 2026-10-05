@@ -23,6 +23,8 @@ export const env = {
   BOT_TOKEN: req("BOT_TOKEN"),
   ADMIN_TELEGRAM_ID: process.env.ADMIN_TELEGRAM_ID || "",
   ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || "admin123",
+  /// Eng yuqori (platforma) admin paroli — do'konlarni boshqarish uchun
+  SUPER_ADMIN_PASSWORD: process.env.SUPER_ADMIN_PASSWORD || "super123",
   JWT_SECRET: process.env.JWT_SECRET || "change-me-secret",
   PORT: Number(process.env.PORT || 4000),
   PUBLIC_URL: (process.env.PUBLIC_URL || "").replace(/\/+$/, ""),

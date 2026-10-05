@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Sotty — Platforma paneli</title>
+<style>
+  :root { --p:#2563eb; --bg:#f4f6fa; --card:#fff; --line:#e5e9f0; --muted:#64748b; --rose:#e11d48; --green:#059669; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:var(--bg); color:#0f172a; }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 20px 16px 60px; }
+  h1 { font-size: 20px; margin: 0; }
+  .top { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; }
+  .btn { border:0; border-radius:10px; padding:9px 14px; font-size:14px; font-weight:600; cursor:pointer; background:#eef2ff; color:#334155; }
+  .btn.primary { background:var(--p); color:#fff; }
+  .btn.ghost { background:#eef2f7; }
+  .btn.sm { padding:5px 9px; font-size:12px; border-radius:8px; }
+  .btn:disabled { opacity:.5; cursor:default; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; }
+  .stats { display:grid; grid-template-columns: repeat(2,1fr); gap:10px; margin-bottom:16px; }
+  @media(min-width:640px){ .stats{ grid-template-columns: repeat(4,1fr);} }
+  .stat { padding:14px; }
+  .stat .l { font-size:12px; color:var(--muted); }
+  .stat .v { font-size:20px; font-weight:800; margin-top:2px; }
+  .row { display:flex; align-items:center; gap:12px; padding:12px 14px; border-top:1px solid var(--line); }
+  .row:first-child { border-top:0; }
+  .row .nm { font-weight:600; }
+  .row .sub { font-size:12px; color:var(--muted); margin-top:2px; }
+  .tag { font-size:11px; padding:2px 8px; border-radius:999px; background:#eef2f7; color:#475569; font-weight:600; }
+  .tag.on { background:#dcfce7; color:var(--green); }
+  .tag.off { background:#ffe4e6; color:var(--rose); }
+  .tag.pro { background:#ede9fe; color:#7c3aed; }
+  input, select { width:100%; padding:9px 11px; border:1px solid var(--line); border-radius:10px; font-size:14px; background:#fff; }
+  label { display:block; font-size:12px; font-weight:600; color:var(--muted); margin:10px 0 4px; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .overlay { position:fixed; inset:0; background:rgba(15,23,42,.45); display:flex; align-items:flex-start; justify-content:center; padding:24px 12px; overflow:auto; z-index:50; }
+  .modal { background:#fff; border-radius:16px; width:100%; max-width:520px; padding:18px; }
+  .center { min-height:70vh; display:flex; align-items:center; justify-content:center; }
+  .err { color:var(--rose); font-size:13px; margin-top:8px; }
+  .muted { color:var(--muted); font-size:13px; }
+  a { color:var(--p); }
+  code { background:#eef2f7; padding:1px 6px; border-radius:6px; font-size:12px; }
+</style>
+</head>
+<body>
+<div id="app" class="wrap"></div>
+<script>
+const api = {
+  async call(method, path, body) {
+    const r = await fetch("/api/super" + path, { method, headers: body ? { "Content-Type": "application/json" } : {}, body: body ? JSON.stringify(body) : undefined });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || ("Xato " + r.status));
+    return j;
+  },
+  get: (p) => api.call("GET", p),
+  post: (p, b) => api.call("POST", p, b),
+  put: (p, b) => api.call("PUT", p, b),
+  del: (p) => api.call("DELETE", p),
+};
+const el = (h) => { const d = document.createElement("div"); d.innerHTML = h.trim(); return d.firstChild; };
+const esc = (s) => String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+const money = (n) => (n||0).toLocaleString("uz");
+const TARIFF = { free:"Bepul", basic:"Basic", pro:"Pro" };
+const app = document.getElementById("app");
+
+async function boot() {
+  try { await api.get("/me"); render(); } catch { renderLogin(); }
+}
+
+function renderLogin() {
+  app.innerHTML = "";
+  const box = el(`<div class="center"><form class="card" style="padding:28px;max-width:360px;width:100%">
+    <h1 style="text-align:center;margin-bottom:4px">Sotty — Platforma</h1>
+    <div class="muted" style="text-align:center;margin-bottom:16px">Eng yuqori admin paneli</div>
+    <label>Parol</label><input type="password" id="pw" autofocus />
+    <div class="err" id="err" style="display:none"></div>
+    <button class="btn primary" style="width:100%;margin-top:14px" type="submit">Kirish</button>
+  </form></div>`);
+  box.querySelector("form").onsubmit = async (e) => {
+    e.preventDefault();
+    const err = box.querySelector("#err");
+    try { await api.post("/login", { password: box.querySelector("#pw").value }); render(); }
+    catch (x) { err.textContent = x.message; err.style.display = "block"; }
+  };
+  app.appendChild(box);
+}
+
+async function render() {
+  app.innerHTML = `<div class="top"><h1>🏢 Do'konlar (akkauntlar)</h1><div style="display:flex;gap:8px">
+    <button class="btn primary" id="add">+ Do'kon qo'shish</button>
+    <button class="btn ghost" id="logout">Chiqish</button></div></div>
+    <div class="stats" id="stats"></div>
+    <div class="card" id="list"><div class="row">Yuklanmoqda…</div></div>`;
+  app.querySelector("#logout").onclick = async () => { await api.post("/logout"); renderLogin(); };
+  app.querySelector("#add").onclick = () => openEditor(null);
+  try {
+    const s = await api.get("/stats");
+    app.querySelector("#stats").innerHTML = `
+      ${stat("Do'konlar", s.shops)}${stat("Faol", s.active)}${stat("To'xtatilgan", s.suspended)}${stat("Jami mijozlar", s.users)}`;
+  } catch {}
+  await loadShops();
+}
+function stat(l, v) { return `<div class="card stat"><div class="l">${l}</div><div class="v">${money(v)}</div></div>`; }
+
+async function loadShops() {
+  const list = app.querySelector("#list");
+  try {
+    const shops = await api.get("/shops");
+    if (!shops.length) { list.innerHTML = `<div class="row"><div class="muted">Hali do'kon yo'q. «Do'kon qo'shish» tugmasini bosing.</div></div>`; return; }
+    list.innerHTML = "";
+    for (const s of shops) {
+      const r = el(`<div class="row">
+        <div style="flex:1;min-width:0">
+          <div class="nm">${esc(s.name)} <span class="tag ${s.tariff==='pro'?'pro':''}">${TARIFF[s.tariff]||s.tariff}</span>
+            ${s.suspended ? '<span class="tag off">to\\'xtatilgan</span>' : (s.active ? '<span class="tag on">faol</span>' : '<span class="tag off">o\\'chiq</span>')}</div>
+          <div class="sub">/${esc(s.slug)} · ${esc(s.ownerName||"—")}${s.ownerPhone?" · "+esc(s.ownerPhone):""} · bot: ${s.hasToken ? (s.botUsername?("@"+esc(s.botUsername)):"ulangan") : "yo\\'q"}</div>
+        </div>
+        <button class="btn sm" data-edit>Tahrir</button>
+        <button class="btn sm" data-sus>${s.suspended?"Faollashtirish":"To'xtatish"}</button>
+        <button class="btn sm" data-del style="color:var(--rose)">O'chirish</button>
+      </div>`);
+      r.querySelector("[data-edit]").onclick = () => openEditor(s);
+      r.querySelector("[data-sus]").onclick = async () => { try { await api.put("/shops/"+s.id, { suspended: !s.suspended }); render(); } catch(e){ alert(e.message);} };
+      r.querySelector("[data-del]").onclick = async () => { if(confirm(`"${s.name}" o'chirilsinmi?`)){ try{ await api.del("/shops/"+s.id); render(); }catch(e){ alert(e.message);} } };
+      list.appendChild(r);
+    }
+  } catch (e) { list.innerHTML = `<div class="row err">${esc(e.message)}</div>`; }
+}
+
+function openEditor(s) {
+  const isNew = !s;
+  s = s || { tariff:"free", active:true, suspended:false };
+  const paid = s.paidUntil ? new Date(s.paidUntil).toISOString().slice(0,10) : "";
+  const ov = el(`<div class="overlay"><div class="modal">
+    <h1 style="margin-bottom:12px">${isNew?"Yangi do'kon":"Do'konni tahrirlash"}</h1>
+    <label>Do'kon nomi *</label><input id="name" value="${esc(s.name||"")}" />
+    <div class="grid2">
+      <div><label>Egasi (ism)</label><input id="ownerName" value="${esc(s.ownerName||"")}" /></div>
+      <div><label>Egasi (telefon)</label><input id="ownerPhone" value="${esc(s.ownerPhone||"")}" /></div>
+    </div>
+    <label>Bot tokeni (BotFather)</label><input id="botToken" placeholder="${s.hasToken?"(o'zgartirmaslik uchun bo'sh qoldiring)":"7712...:AAE..."}" />
+    <div class="grid2">
+      <div><label>Bot username (@siz)</label><input id="botUsername" value="${esc(s.botUsername||"")}" placeholder="mening_dokon_bot" /></div>
+      <div><label>Tarif</label><select id="tariff">
+        <option value="free"${s.tariff==='free'?' selected':''}>Bepul</option>
+        <option value="basic"${s.tariff==='basic'?' selected':''}>Basic</option>
+        <option value="pro"${s.tariff==='pro'?' selected':''}>Pro</option></select></div>
+    </div>
+    <div class="grid2">
+      <div><label>Tarif muddati (gacha)</label><input type="date" id="paidUntil" value="${paid}" /></div>
+      <div><label>URL kaliti (slug)</label><input id="slug" value="${esc(s.slug||"")}" placeholder="avtomatik" /></div>
+    </div>
+    <label>Izoh</label><input id="note" value="${esc(s.note||"")}" />
+    <label style="display:flex;align-items:center;gap:8px;margin-top:12px"><input type="checkbox" id="active" ${s.active?"checked":""} style="width:auto" /> Faol</label>
+    <div class="err" id="merr" style="display:none"></div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">
+      <button class="btn ghost" id="cancel">Bekor</button><button class="btn primary" id="save">Saqlash</button>
+    </div>
+  </div></div>`);
+  const close = () => ov.remove();
+  ov.querySelector("#cancel").onclick = close;
+  ov.onclick = (e) => { if (e.target === ov) close(); };
+  ov.querySelector("#save").onclick = async () => {
+    const g = (id) => ov.querySelector("#"+id).value.trim();
+    const body = { name:g("name"), ownerName:g("ownerName"), ownerPhone:g("ownerPhone"), botToken:g("botToken"), botUsername:g("botUsername"), tariff:g("tariff"), slug:g("slug"), note:g("note"), paidUntil:g("paidUntil")||null, active:ov.querySelector("#active").checked };
+    const err = ov.querySelector("#merr");
+    try { if (isNew) await api.post("/shops", body); else await api.put("/shops/"+s.id, body); close(); render(); }
+    catch (x) { err.textContent = x.message; err.style.display = "block"; }
+  };
+  document.body.appendChild(ov);
+}
+
+boot();
+</script>
+</body>
+</html>
