@@ -9,6 +9,7 @@ import { log } from "../logger.ts";
 import { appRouter } from "./routes/app.ts";
 import { adminRouter } from "./routes/admin.ts";
 import { superRouter } from "./routes/super.ts";
+import { registerRouter } from "./routes/register.ts";
 import { paymeHandler } from "../payments/payme.ts";
 
 export function createServer() {
@@ -29,9 +30,11 @@ export function createServer() {
   app.use("/api/app", appRouter);
   app.use("/api/admin", adminRouter);
   app.use("/api/super", superRouter);
+  app.use("/api/register", registerRouter);
 
-  // Eng yuqori (platforma) admin paneli — alohida sahifa
+  // Eng yuqori (platorma) admin paneli va ro'yxatdan o'tish — alohida sahifalar
   app.get(["/super", "/super/"], (_req, res) => { res.sendFile(path.join(env.BACKEND_DIR, "super", "index.html")); });
+  app.get(["/register", "/register/"], (_req, res) => { res.sendFile(path.join(env.BACKEND_DIR, "super", "register.html")); });
 
   // Yuklangan fayllar: avval disk, keyin baza
   app.use("/uploads", express.static(env.UPLOADS_DIR, { maxAge: "7d", immutable: true }));

@@ -5,11 +5,14 @@ import type { Lang } from "../settings/schema.ts";
 import { getPublicUrl } from "../utils/publicUrl.ts";
 import { nextStages, type Stage } from "../erp/orders.ts";
 import { isMultiStore, listStores } from "../erp/stores.ts";
+import { currentShopId } from "../db.ts";
+import { shopSlug } from "./manager.ts";
 
 export function appUrl(): string | null {
   const u = getPublicUrl();
   if (!u || !u.startsWith("https://")) return null;
-  return `${u}/app/`;
+  const slug = shopSlug(currentShopId());
+  return slug && slug !== "main" ? `${u}/app/?shop=${encodeURIComponent(slug)}` : `${u}/app/`;
 }
 
 export function contactKeyboard(lang: Lang): Keyboard {

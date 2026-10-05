@@ -29,21 +29,35 @@ Arxitektura: **bitta baza, qatorli ko'p-ijara (row-level multitenancy)** + bitta
 - Hozircha barcha so'rovlar `currentShopId()` = 1 (kontekst o'rnatilmagan) — mavjud tizim
   bir xil ishlaydi. Haqiqiy per-so'rov do'kon aniqlash (domen/slug/bot) — 6.3da ulanadi.
 
-### ⏳ 6.3 — Ko'p-bot runtime + ro'yxatdan o'tish
-- Har bir faol do'kon tokeni uchun alohida grammY bot (bitta jarayonda).
-- Token qo'shilganda/o'zgarganda botni ishga tushirish/qayta ulash; to'xtatilganda o'chirish.
-- **Ro'yxatdan o'tish mini-app/sayt:** do'kon egasi reklama orqali kiradi, ma'lumot va bot
-  tokenini kiritadi, tarif tanlaydi — do'kon avtomatik yaratiladi va boti 2 daqiqada ishga tushadi.
-- Admin panel super-admin uchun: har do'konga "impersonate" (do'kon panelini ochish).
+### ✅ 6.3 — Ko'p-bot runtime + do'kon aniqlash + ro'yxatdan o'tish — BAJARILDI
+- `bot/manager.ts`: har bir faol do'kon tokeni uchun alohida grammY bot (bitta jarayonda),
+  har update `runWithShop(shopId)` ichida. 1-do'kon boti o'zgarmay ishlaydi.
+- Chiquvchi xabarlar (buyurtma, to'lov, broadcast) `botForShop(currentShopId())` orqali
+  to'g'ri do'kon botidan yuboriladi.
+- **Do'kon aniqlash:** Mini App/admin `?shop=<slug>` (yoki `X-Shop` sarlavha) orqali;
+  Mini App initData o'sha do'kon bot tokeni bilan tekshiriladi; admin JWT do'konga bog'langan
+  (boshqa do'kon ma'lumotiga kira olmaydi). Bot menyu havolasi slug'ni o'zi qo'shadi.
+- Super-admin do'kon qo'sh/o'zgartirganda boti avtomatik ishga tushadi/to'xtaydi;
+  panelda har do'kon uchun "Admin" havolasi (impersonate).
+- **Ochiq ro'yxatdan o'tish:** `/register` sahifasi — egasi nomi, bot tokeni, parol, tarifni
+  kiritadi → do'kon yaratiladi, admin paroli o'rnatiladi, bot darhol ishga tushadi.
 
-### ⏳ 6.4 — Tariflar va cheklovlar
+### ⏳ 6.4 — Tariflar va cheklovlar (keyingi)
 - Tarif bo'yicha limitlar (mahsulotlar soni, buyurtmalar, bannerlar...).
 - To'lov muddati tugaganda do'konni avtomatik to'xtatish/ogohlantirish.
 
-## Hozircha qanday ishlatiladi
-1. `SUPER_ADMIN_PASSWORD` ni Railway Variables'ga qo'ying.
-2. `https://<domen>/super` — platforma paneliga kiring.
-3. Do'konlar qo'shib, ma'lumotlarini (egasi, bot tokeni, tarif) saqlang.
+## Qanday ishlatiladi
 
-> Eslatma: 6.2 bajarilgunicha do'konlar yagona umumiy katalog/bazani bo'lishadi —
-> to'liq ajratish (har do'kon o'z mahsuloti/boti) keyingi bosqichlarda yoqiladi.
+**Platforma egasi (siz):**
+1. `SUPER_ADMIN_PASSWORD` ni Railway Variables'ga qo'ying.
+2. `https://<domen>/super` — platforma paneliga kiring; do'konlar qo'shing/boshqaring,
+   har biri uchun "Admin" havolasi orqali o'sha do'kon paneliga o'ting.
+
+**Do'kon egasi (mijoz):**
+1. `https://<domen>/register` — nomi, bot tokeni (BotFather), parol, tarifni kiritadi.
+2. Do'kon darhol yaratiladi, boti ishga tushadi.
+3. `https://<domen>/admin/?shop=<slug>` — o'z admin paneli; `.../app/?shop=<slug>` — Mini App.
+   Botini Telegramda ochib /start bosadi — menyu tugmasi o'z do'koniga ulangan.
+
+Har bir do'konning mahsuloti, buyurtmasi, mijozlari, kassasi va boti **to'liq ajratilgan**
+(shopId + alohida bot). Ma'lumotlar bir-biriga aralashmaydi.

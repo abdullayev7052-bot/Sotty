@@ -12,7 +12,8 @@ import { matchScore } from "../../utils/search.ts";
 import { normalizePhone } from "../../utils/format.ts";
 import { activity, errMsg, log } from "../../logger.ts";
 import { sendToUser } from "../../bot/send.ts";
-import { bot } from "../../bot/instance.ts";
+import { botForShop } from "../../bot/manager.ts";
+import { currentShopId } from "../../db.ts";
 import { getPublicUrl } from "../../utils/publicUrl.ts";
 import { fill } from "../../settings/store.ts";
 import { esc } from "../../utils/format.ts";
@@ -652,7 +653,7 @@ let botUserCache: { at: number; name: string | null } | null = null;
 async function botUsername(): Promise<string | null> {
   if (botUserCache && Date.now() - botUserCache.at < 10 * 60 * 1000) return botUserCache.name;
   try {
-    const me = await bot.api.getMe();
+    const me = await botForShop(currentShopId()).api.getMe();
     botUserCache = { at: Date.now(), name: me.username || null };
   } catch { botUserCache = { at: Date.now(), name: null }; }
   return botUserCache.name;

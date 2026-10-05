@@ -6,6 +6,7 @@ import { refreshShareAdmins } from "./erp/share.ts";
 import { pruneStalePayments } from "./payments/payme.ts";
 import { listen, migrateDiskUploads } from "./http/server.ts";
 import { startBot } from "./bot/index.ts";
+import { startExtraShopBots } from "./bot/manager.ts";
 import { getPublicUrl, startPublicUrlWatcher } from "./utils/publicUrl.ts";
 import { startTunnelAutostart } from "./utils/tunnel.ts";
 import { pruneEvents } from "./analytics/track.ts";
@@ -21,6 +22,7 @@ async function main() {
   await listen();
   void migrateDiskUploads();
   await startBot();
+  void startExtraShopBots();
 
   await startPublicUrlWatcher();
   startTunnelAutostart();

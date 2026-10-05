@@ -50,16 +50,20 @@ export function setupBot() {
   if (handlersReady) return;
   handlersReady = true;
   bot = instance.bot as unknown as Bot<MyContext>;
-  bot.use(async (ctx, next) => {
+  if (!notificationsReady) { registerNotifications(); notificationsReady = true; }
+  registerHandlers(bot);
+}
+
+/** Barcha handlerlarni berilgan botga ulash (bootstrap va qo'shimcha do'konlar uchun umumiy) */
+export function registerHandlers(b: Bot<MyContext>) {
+  b.use(async (ctx, next) => {
     // Guruhlarda foydalanuvchini bazaga yozmaymiz, faqat shaxsiy chatda
     if (ctx.chat?.type === "private") return userMiddleware(ctx, next);
     return next();
   });
-
-  if (!notificationsReady) { registerNotifications(); notificationsReady = true; }
-  registerGroup(bot);
+  registerGroup(b);
   // Bosh admin uchun admin panel havolasi
-  bot.command("admin", async (ctx) => {
+  b.command("admin", async (ctx) => {
     if (ctx.chat.type !== "private") return;
     if (!env.ADMIN_TELEGRAM_ID || String(ctx.from?.id) !== env.ADMIN_TELEGRAM_ID) return;
     const pub = getPublicUrl();
@@ -70,11 +74,9 @@ export function setupBot() {
       { parse_mode: "HTML", link_preview_options: { is_disabled: true } },
     );
   });
-
-  registerStart(bot);
-  registerMenu(bot);
-
-  bot.catch((err) => {
+  registerStart(b);
+  registerMenu(b);
+  b.catch((err) => {
     log.error("Bot xatosi:", errMsg(err.error));
     void activity("bot_error", errMsg(err.error));
   });

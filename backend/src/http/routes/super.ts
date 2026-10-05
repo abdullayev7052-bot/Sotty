@@ -2,7 +2,15 @@ import { Router, type Request, type Response } from "express";
 import { z } from "zod";
 import { prisma } from "../../db.ts";
 import { superAuth, superLogin, superLogout } from "../auth.ts";
+import { startShopBot, stopShopBot } from "../../bot/manager.ts";
 import { errMsg, log } from "../../logger.ts";
+
+/** Do'kon holatiga qarab botini ishga tushirish yoki to'xtatish */
+async function syncShopBot(shopId: number) {
+  const s = await prisma.shop.findUnique({ where: { id: shopId } });
+  if (s && s.active && !s.suspended && s.botToken) await startShopBot(s.id, s.slug, s.botToken);
+  else await stopShopBot(shopId);
+}
 
 export const superRouter = Router();
 
@@ -70,6 +78,7 @@ superRouter.post("/shops", async (req, res) => {
         note: b.note || null, paidUntil: b.paidUntil ? new Date(b.paidUntil) : null,
       },
     });
+    if (shop.id !== 1) void syncShopBot(shop.id);
     res.json({ ok: true, id: shop.id, slug: shop.slug });
   } catch (e) { res.status(400).json({ error: errMsg(e) }); }
 });
@@ -91,12 +100,13 @@ superRouter.put("/shops/:id", async (req, res) => {
     if (b.note !== undefined) data.note = b.note || null;
     if (b.paidUntil !== undefined) data.paidUntil = b.paidUntil ? new Date(b.paidUntil) : null;
     const shop = await prisma.shop.update({ where: { id: Number(req.params.id) }, data });
+    if (shop.id !== 1) void syncShopBot(shop.id);
     res.json({ ok: true, id: shop.id });
   } catch (e) { res.status(400).json({ error: errMsg(e) }); }
 });
 
 superRouter.delete("/shops/:id", async (req, res) => {
-  try { await prisma.shop.delete({ where: { id: Number(req.params.id) } }); res.json({ ok: true }); }
+  try { const id = Number(req.params.id); if (id !== 1) await stopShopBot(id); await prisma.shop.delete({ where: { id } }); res.json({ ok: true }); }
   catch (e) { res.status(400).json({ error: errMsg(e) }); }
 });
 

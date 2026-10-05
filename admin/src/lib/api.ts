@@ -4,11 +4,21 @@ export class ApiError extends Error {
 
 const BASE = "/api/admin";
 
+/** Do'kon slug'i (ko'p-do'kon): ?shop=... URL'da bo'lsa shu do'kon admini */
+function shopHeaders(): Record<string, string> {
+  try {
+    const u = new URLSearchParams(location.search).get("shop");
+    if (u) { localStorage.setItem("sotty_admin_shop", u); return { "X-Shop": u }; }
+    const saved = localStorage.getItem("sotty_admin_shop");
+    return saved ? { "X-Shop": saved } : {};
+  } catch { return {}; }
+}
+
 async function request<T>(method: string, path: string, body?: unknown, raw?: FormData): Promise<T> {
   const r = await fetch(BASE + path, {
     method,
     credentials: "include",
-    headers: raw ? {} : { "Content-Type": "application/json" },
+    headers: { ...(raw ? {} : { "Content-Type": "application/json" }), ...shopHeaders() },
     body: raw ? raw : body === undefined ? undefined : JSON.stringify(body),
   });
   const text = await r.text();

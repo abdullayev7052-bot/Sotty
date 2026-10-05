@@ -6,10 +6,22 @@ export class ApiError extends Error {
 
 const BASE = "/api/app";
 
+/** Do'kon slug'i — bot ochgan havoladagi ?shop=... (SaaS ko'p-do'kon uchun) */
+function shopSlug(): string {
+  try {
+    const startParam = (tg as { initDataUnsafe?: { start_param?: string } } | null)?.initDataUnsafe?.start_param || "";
+    const u = new URLSearchParams(location.search).get("shop") || startParam;
+    if (u) { localStorage.setItem("sotty_shop", u); return u; }
+    return localStorage.getItem("sotty_shop") || "";
+  } catch { return ""; }
+}
+
 function headers(): Record<string, string> {
   const h: Record<string, string> = { "Content-Type": "application/json", "ngrok-skip-browser-warning": "1", "X-Platform": tg?.platform || "web" };
   if (inTelegram && tg) h.Authorization = `tma ${tg.initData}`;
   else { const d = devUserId(); if (d) h["X-Dev-User"] = d; }
+  const slug = shopSlug();
+  if (slug) h["X-Shop"] = slug;
   return h;
 }
 

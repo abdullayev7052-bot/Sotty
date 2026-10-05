@@ -1,15 +1,17 @@
 import { GrammyError } from "grammy";
 import type { InlineKeyboard, Keyboard } from "grammy";
-import { bot } from "./instance.ts";
-import { prisma } from "../db.ts";
+import { botForShop } from "./manager.ts";
+import { prisma, currentShopId } from "../db.ts";
 import { log } from "../logger.ts";
+
+const bot = () => botForShop(currentShopId());
 
 type Markup = InlineKeyboard | Keyboard | { remove_keyboard: true };
 
 /** Foydalanuvchiga xavfsiz xabar yuborish (bloklaganlarni belgilab qo'yadi) */
 export async function sendToUser(telegramId: bigint | number | string, text: string, opts?: { reply_markup?: Markup; disable_notification?: boolean }): Promise<number | null> {
   try {
-    const m = await bot.api.sendMessage(String(telegramId), text, {
+    const m = await bot().api.sendMessage(String(telegramId), text, {
       parse_mode: "HTML",
       link_preview_options: { is_disabled: true },
       reply_markup: opts?.reply_markup as never,
@@ -30,7 +32,7 @@ export async function sendToUser(telegramId: bigint | number | string, text: str
 export async function sendPhotoToUser(telegramId: bigint | number | string, photo: Buffer | string, caption?: string): Promise<boolean> {
   try {
     const { InputFile } = await import("grammy");
-    await bot.api.sendPhoto(String(telegramId), typeof photo === "string" ? photo : new InputFile(photo, "card.png"), { caption, parse_mode: "HTML" });
+    await bot().api.sendPhoto(String(telegramId), typeof photo === "string" ? photo : new InputFile(photo, "card.png"), { caption, parse_mode: "HTML" });
     return true;
   } catch (e) {
     log.error("sendPhotoToUser", (e as Error).message);
@@ -41,7 +43,7 @@ export async function sendPhotoToUser(telegramId: bigint | number | string, phot
 export async function sendDocumentToUser(telegramId: bigint | number | string, file: Buffer, filename: string, caption?: string): Promise<boolean> {
   try {
     const { InputFile } = await import("grammy");
-    await bot.api.sendDocument(String(telegramId), new InputFile(file, filename), { caption, parse_mode: "HTML" });
+    await bot().api.sendDocument(String(telegramId), new InputFile(file, filename), { caption, parse_mode: "HTML" });
     return true;
   } catch (e) {
     log.error("sendDocumentToUser", (e as Error).message);

@@ -7,7 +7,7 @@ import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { prisma, currentShopId } from "../../db.ts";
 import { env } from "../../env.ts";
-import { adminAuth, adminLogin, adminLogout, setAdminPassword } from "../auth.ts";
+import { adminAuth, adminLogin, adminLogout, setAdminPassword, shopContext } from "../auth.ts";
 import { settingsSchema } from "../../settings/schema.ts";
 import { getSettings, loadSettings, updateSection } from "../../settings/store.ts";
 import { fileUrl } from "../../erp/images.ts";
@@ -15,7 +15,7 @@ import { getSyncStatus, notifyStockArrived } from "../../erp/sync.ts";
 import { getWebhookState } from "../../erp/webhook.ts";
 import { getPublicUrl, setPublicUrlManually } from "../../utils/publicUrl.ts";
 import { activity, errMsg, log } from "../../logger.ts";
-import { bot } from "../../bot/instance.ts";
+import { botForShop } from "../../bot/manager.ts";
 import { updateMenuButton, restartBot } from "../../bot/index.ts";
 import { sendToUser } from "../../bot/send.ts";
 import { invalidateProductCache } from "./app.ts";
@@ -30,6 +30,7 @@ import { cashBalance, recordCash, acceptPayment, adjustBalance, financeReport } 
 
 export const adminRouter = Router();
 
+adminRouter.use(shopContext);
 adminRouter.get("/branding", (_req, res) => { res.json(getSettings().adminPanel); });
 adminRouter.post("/login", adminLogin);
 adminRouter.post("/logout", adminLogout);
@@ -362,7 +363,7 @@ adminRouter.get("/status", async (_req, res) => {
     prisma.order.count(), prisma.order.count({ where: { createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) } } }),
     prisma.waitlist.count({ where: { notifiedAt: null } }), prisma.adminGroup.findMany(), getWebhookState(),
     prisma.activityLog.findMany({ orderBy: { createdAt: "desc" }, take: 30 }),
-    bot.api.getMe().catch(() => null),
+    botForShop(currentShopId()).api.getMe().catch(() => null),
   ]);
   const s = getSettings();
   res.json({
@@ -712,7 +713,7 @@ adminRouter.delete("/groups/:id", async (req, res) => { await prisma.adminGroup.
 adminRouter.post("/groups/:id/test", async (req, res) => {
   const g = await prisma.adminGroup.findUnique({ where: { id: Number(req.params.id) } });
   if (!g) { res.status(404).json({ error: "not found" }); return; }
-  try { await bot.api.sendMessage(g.chatId, "✅ Test: bot bu guruhga xabar yubora oladi."); res.json({ ok: true }); }
+  try { await botForShop(currentShopId()).api.sendMessage(g.chatId, "✅ Test: bot bu guruhga xabar yubora oladi."); res.json({ ok: true }); }
   catch (e) { res.json({ ok: false, error: errMsg(e) }); }
 });
 adminRouter.get("/staff", async (_req, res) => { res.json(await prisma.staff.findMany({ orderBy: { createdAt: "desc" } })); });
@@ -813,11 +814,11 @@ adminRouter.post("/broadcast", async (req, res) => {
         const media = fileId || file;
         const opts = { caption: b.text, parse_mode: "HTML" as const, reply_markup: markup };
         let m: { photo?: { file_id: string }[]; video?: { file_id: string }; document?: { file_id: string }; animation?: { file_id: string } } | null = null;
-        if (!media) await bot.api.sendMessage(chat, b.text, { parse_mode: "HTML", reply_markup: markup, link_preview_options: { is_disabled: true } });
-        else if (type === "video") m = await bot.api.sendVideo(chat, media, { ...opts, supports_streaming: true });
-        else if (type === "animation") m = await bot.api.sendAnimation(chat, media, opts);
-        else if (type === "document") m = await bot.api.sendDocument(chat, media, opts);
-        else m = await bot.api.sendPhoto(chat, media, opts);
+        if (!media) await botForShop(currentShopId()).api.sendMessage(chat, b.text, { parse_mode: "HTML", reply_markup: markup, link_preview_options: { is_disabled: true } });
+        else if (type === "video") m = await botForShop(currentShopId()).api.sendVideo(chat, media, { ...opts, supports_streaming: true });
+        else if (type === "animation") m = await botForShop(currentShopId()).api.sendAnimation(chat, media, opts);
+        else if (type === "document") m = await botForShop(currentShopId()).api.sendDocument(chat, media, opts);
+        else m = await botForShop(currentShopId()).api.sendPhoto(chat, media, opts);
         // Telegram'ga bir marta yuklab, keyin file_id bilan yuborish (tez va sifatli)
         if (m && !fileId) fileId = m.video?.file_id || m.document?.file_id || m.animation?.file_id || m.photo?.[m.photo.length - 1]?.file_id || null;
         sent++;

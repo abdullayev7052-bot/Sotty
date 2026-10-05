@@ -1,7 +1,9 @@
 import type { Order, User } from "@prisma/client";
 import { GrammyError } from "grammy";
-import { bot } from "./instance.ts";
-import { prisma } from "../db.ts";
+import { botForShop } from "./manager.ts";
+import { prisma, currentShopId } from "../db.ts";
+
+const bot = () => botForShop(currentShopId());
 import { events, type StageActor } from "../events.ts";
 import { fill, getSettings, lt } from "../settings/store.ts";
 import type { Lang } from "../settings/schema.ts";
@@ -79,7 +81,7 @@ async function onOrderCreated(order: Order, user: User) {
   const html = groupOrderText(order, user);
   for (const g of groups) {
     try {
-      const m = await bot.api.sendMessage(g.chatId, html, { parse_mode: "HTML", reply_markup: groupOrderKeyboard(order), link_preview_options: { is_disabled: true } });
+      const m = await bot().api.sendMessage(g.chatId, html, { parse_mode: "HTML", reply_markup: groupOrderKeyboard(order), link_preview_options: { is_disabled: true } });
       if (!order.groupMessageId) {
         order = await prisma.order.update({ where: { id: order.id }, data: { groupChatId: g.chatId, groupMessageId: m.message_id } });
       }
@@ -97,7 +99,7 @@ export async function refreshGroupMessage(order: Order) {
   if (!order.groupChatId || !order.groupMessageId) return;
   const user = await prisma.user.findUnique({ where: { id: order.userId } });
   try {
-    await bot.api.editMessageText(order.groupChatId, order.groupMessageId, groupOrderText(order, user), {
+    await bot().api.editMessageText(order.groupChatId, order.groupMessageId, groupOrderText(order, user), {
       parse_mode: "HTML", reply_markup: groupOrderKeyboard(order), link_preview_options: { is_disabled: true },
     });
   } catch (e) {
