@@ -26,6 +26,8 @@ model User {
   lng            Float?
   step           String   @default("new") // new | phone | name | done
   isBlocked      Boolean  @default(false)
+  /// Mijoz balansi: musbat = haqdor (oldindan to'lagan), manfiy = qarzdor
+  balance        Float    @default(0)
   /// Oxirgi faollik (bot yoki Mini App) — DAU/WAU/MAU va "faol bo'lmay qolganlar" uchun
   lastActiveAt   DateTime?
   createdAt      DateTime @default(now())
@@ -36,6 +38,7 @@ model User {
   events    AppEvent[]
   favorites Favorite[]
   cart      CartItem[]
+  cashTx    CashTransaction[]
 }
 
 /// Mahsulot (ichki katalog). Admin paneldan qo'lda qo'shiladi/tahrirlanadi.
@@ -137,6 +140,33 @@ model StockMovement {
   @@index([createdAt])
 }
 
+/// Kassa harakati (pul kirim/chiqim) — kassa qoldig'ining to'liq jurnali
+model CashTransaction {
+  id          Int      @id @default(autoincrement())
+  /// income = kirim (pul keldi), expense = chiqim (pul chiqdi)
+  kind        String
+  amount      Float    @default(0)
+  /// cash | card | transfer | other
+  method      String   @default("cash")
+  /// sale | debt_payment | purchase | salary | rent | refund | other
+  category    String   @default("other")
+  note        String?
+  /// Mijoz (to'lov/qarz bilan bog'liq bo'lsa)
+  userId      Int?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  /// Buyurtmaga bog'langan bo'lsa
+  orderId     Int?
+  /// Harakatdan keyingi kassa qoldig'i
+  balanceAfter Float   @default(0)
+  createdBy   String?
+  createdAt   DateTime @default(now())
+
+  @@index([kind, createdAt])
+  @@index([category, createdAt])
+  @@index([userId, createdAt])
+  @@index([createdAt])
+}
+
 /// Kategoriya (ichki katalog). bitoId — ichki barqaror kategoriya kodi.
 model Category {
   id         Int     @id @default(autoincrement())
@@ -185,6 +215,8 @@ model Order {
   paidAt           DateTime?
   /// Buyurtma bajarilganda ombordan chiqim qilinganmi (ikki marta yechmaslik uchun)
   stockApplied     Boolean  @default(false)
+  /// Buyurtma bajarilganda kassaga tushum yozilganmi
+  cashApplied      Boolean  @default(false)
   payments         Payment[]
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt

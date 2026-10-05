@@ -18,6 +18,7 @@ const D = {
   broadcast: { uz: "Post", ru: "Пост", en: "Post" },
   catalog: { uz: "Katalog boshqaruvi", ru: "Управление каталогом", en: "Catalog management" },
   warehouse: { uz: "Ombor", ru: "Склад", en: "Warehouse" },
+  finance: { uz: "Moliya", ru: "Финансы", en: "Finance" },
   bito: { uz: "Bito", ru: "Bito", en: "Bito" },
   shop: { uz: "Do'kon", ru: "Магазин", en: "Store" },
   bot: { uz: "Bot", ru: "Бот", en: "Bot" },

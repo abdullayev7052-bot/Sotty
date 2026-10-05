@@ -26,6 +26,7 @@ import { valueOf } from "../../erp/productFields.ts";
 import { listStores } from "../../erp/stores.ts";
 import { buildSearchKey } from "../../utils/search.ts";
 import { recordMovement, recordPurchase, warehouseSummary } from "../../erp/warehouse.ts";
+import { cashBalance, recordCash, acceptPayment, adjustBalance, financeReport } from "../../erp/cashbox.ts";
 
 export const adminRouter = Router();
 
@@ -257,6 +258,59 @@ adminRouter.put("/suppliers/:id", async (req, res) => {
   res.json(await prisma.supplier.update({ where: { id: Number(req.params.id) }, data: { name: b.name, phone: b.phone === undefined ? undefined : (b.phone || null), note: b.note === undefined ? undefined : (b.note || null) } }));
 });
 adminRouter.delete("/suppliers/:id", async (req, res) => { await prisma.supplier.delete({ where: { id: Number(req.params.id) } }); res.json({ ok: true }); });
+
+// ---------- Kassa (pul kirim/chiqim) ----------
+adminRouter.get("/cash/summary", async (_req, res) => { res.json({ balance: await cashBalance() }); });
+adminRouter.get("/cash/transactions", async (req, res) => {
+  const where: Record<string, unknown> = {};
+  if (req.query.kind) where.kind = String(req.query.kind);
+  if (req.query.category) where.category = String(req.query.category);
+  const limit = Math.min(500, Math.max(1, Number(req.query.limit || 100)));
+  const rows = await prisma.cashTransaction.findMany({ where, orderBy: { createdAt: "desc" }, take: limit, include: { user: { select: { name: true, phone: true } } } });
+  res.json(rows.map((t) => ({ id: t.id, kind: t.kind, amount: t.amount, method: t.method, category: t.category, note: t.note, orderId: t.orderId, customer: t.user ? (t.user.name || t.user.phone || "") : null, balanceAfter: t.balanceAfter, createdBy: t.createdBy, createdAt: t.createdAt })));
+});
+adminRouter.post("/cash", async (req, res) => {
+  const b = z.object({
+    kind: z.enum(["income", "expense"]),
+    amount: z.number().positive(),
+    method: z.enum(["cash", "card", "transfer", "other"]).optional(),
+    category: z.enum(["sale", "debt_payment", "purchase", "salary", "rent", "refund", "other"]).optional(),
+    note: z.string().max(500).nullable().optional(),
+  }).parse(req.body);
+  try { const tx = await recordCash({ ...b, createdBy: "admin" }); res.json({ ok: true, id: tx.id, balance: tx.balanceAfter }); }
+  catch (e) { res.status(400).json({ error: errMsg(e) }); }
+});
+
+// ---------- Moliyaviy hisobot ----------
+adminRouter.get("/finance/report", async (req, res) => {
+  const isYmd = (s?: string) => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s);
+  const today = new Date().toISOString().slice(0, 10);
+  let from = isYmd(String(req.query.from)) ? String(req.query.from) : today;
+  let to = isYmd(String(req.query.to)) ? String(req.query.to) : today;
+  if (from > to) [from, to] = [to, from];
+  try { res.json(await financeReport(from, to)); } catch (e) { res.status(500).json({ error: errMsg(e) }); }
+});
+
+// ---------- Mijozlar balansi ----------
+adminRouter.get("/customers", async (req, res) => {
+  const q = String(req.query.q || "").trim();
+  const onlyDebt = req.query.onlyDebt === "1";
+  const where: Record<string, unknown> = {};
+  if (onlyDebt) where.balance = { not: 0 };
+  if (q) where.OR = [{ name: { contains: q, mode: "insensitive" } }, { phone: { contains: q } }];
+  const rows = await prisma.user.findMany({ where, orderBy: onlyDebt ? { balance: "asc" } : { createdAt: "desc" }, take: 100, select: { id: true, name: true, tgFirstName: true, phone: true, balance: true, telegramId: true } });
+  res.json(rows.map((u) => ({ id: u.id, name: u.name || u.tgFirstName || "—", phone: u.phone, balance: u.balance, telegramId: String(u.telegramId) })));
+});
+adminRouter.post("/customers/:id/payment", async (req, res) => {
+  const b = z.object({ amount: z.number().positive(), method: z.enum(["cash", "card", "transfer", "other"]).optional(), note: z.string().max(500).nullable().optional() }).parse(req.body);
+  try { const r = await acceptPayment({ userId: Number(req.params.id), amount: b.amount, method: b.method, note: b.note, createdBy: "admin" }); res.json({ ok: true, balance: r.balance }); }
+  catch (e) { res.status(400).json({ error: errMsg(e) }); }
+});
+adminRouter.post("/customers/:id/adjust", async (req, res) => {
+  const b = z.object({ delta: z.number(), note: z.string().max(500).nullable().optional() }).parse(req.body);
+  try { const r = await adjustBalance({ userId: Number(req.params.id), delta: b.delta, note: b.note, createdBy: "admin" }); res.json({ ok: true, balance: r.balance }); }
+  catch (e) { res.status(400).json({ error: errMsg(e) }); }
+});
 adminRouter.post("/public-url", async (req, res) => {
   const url = String((req.body as { url?: string })?.url || "").trim();
   if (url && !/^https:\/\//.test(url)) { res.status(400).json({ error: "Manzil https:// bilan boshlanishi kerak" }); return; }

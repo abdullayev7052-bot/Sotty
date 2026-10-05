@@ -38,9 +38,11 @@ export async function fetchCustomer(user: User): Promise<LocalCustomer | null> {
 
 export interface BalanceLine { organization: string; amount: number; currency: string }
 
-/** Mijoz balansi — ichki moliya (kassa/savdo) bosqichida hisoblanadi. Hozircha bo'sh. */
-export async function fetchBalances(_user: User, _onlyStore = true): Promise<BalanceLine[]> {
-  return [];
+/** Mijoz balansi (musbat = haqdor, manfiy = qarzdor) */
+export async function fetchBalances(user: User, _onlyStore = true): Promise<BalanceLine[]> {
+  const bal = Number(user.balance || 0);
+  if (!bal) return [];
+  return [{ organization: "", amount: bal, currency: "" }];
 }
 
 /** Mijoz manzilini yangilash (ichki — foydalanuvchida saqlanadi, buyurtmada bajariladi) */
