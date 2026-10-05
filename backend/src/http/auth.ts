@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, timingSafeEqual, randomUUID } from "node:crypto";
 import type { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
@@ -10,7 +10,7 @@ import { tokenForShop, shopIdBySlug, botForShop } from "../bot/manager.ts";
 import { isShopInactive } from "../erp/limits.ts";
 import { touchUser } from "../analytics/track.ts";
 import { normalizePhone } from "../utils/format.ts";
-import { errMsg } from "../logger.ts";
+import { errMsg, log } from "../logger.ts";
 
 export interface TgInitUser { id: number; first_name?: string; last_name?: string; username?: string; language_code?: string }
 
@@ -131,10 +131,31 @@ export async function adminLogin(req: Request, res: Response) {
   }
   const hash = await getAdminPasswordHash();
   if (!hash || !password || !bcrypt.compareSync(password, hash)) { res.status(401).json({ error: "Parol noto'g'ri" }); return; }
-  // Admin faqat o'z do'koniga bog'lanadi (ko'p-do'kon izolyatsiyasi)
-  const token = jwt.sign({ role: "admin", shopId: sid }, env.JWT_SECRET, { expiresIn: "7d" });
+  // Admin faqat o'z do'koniga bog'lanadi (ko'p-do'kon izolyatsiyasi). jti — sessiya (qurilma) kaliti.
+  const jti = randomUUID();
+  const token = jwt.sign({ role: "admin", shopId: sid, jti }, env.JWT_SECRET, { expiresIn: "7d" });
+  // Qurilma sessiyasini yozamiz va limitni qo'llaymiz
+  try {
+    const { device, ip } = deviceInfo(req);
+    await prisma.adminSession.create({ data: { shopId: sid, jti, device, ip } });
+    const shop = await prisma.shop.findUnique({ where: { id: sid }, select: { deviceLimit: true } });
+    const limit = Math.max(1, shop?.deviceLimit ?? 3);
+    const sessions = await prisma.adminSession.findMany({ where: { shopId: sid }, orderBy: { lastSeenAt: "desc" }, select: { id: true } });
+    if (sessions.length > limit) {
+      await prisma.adminSession.deleteMany({ where: { id: { in: sessions.slice(limit).map((s) => s.id) } } });
+    }
+  } catch (e) { log.warn("adminSession", errMsg(e)); }
   res.cookie(adminCookieName(sid), token, { httpOnly: true, sameSite: "lax", maxAge: 7 * 24 * 3600 * 1000, path: "/" });
   res.json({ ok: true });
+}
+
+/** So'rovdan qurilma (brauzer/OS) va IP ni qisqa tavsiflash */
+function deviceInfo(req: Request): { device: string; ip: string } {
+  const ua = String(req.header("user-agent") || "");
+  const ip = String((req.header("x-forwarded-for") || "").split(",")[0] || req.socket?.remoteAddress || "").trim();
+  const os = /Android/i.test(ua) ? "Android" : /iPhone|iPad|iPod|iOS/i.test(ua) ? "iPhone/iPad" : /Windows/i.test(ua) ? "Windows" : /Macintosh|Mac OS/i.test(ua) ? "Mac" : /Linux/i.test(ua) ? "Linux" : "Qurilma";
+  const br = /Edg/i.test(ua) ? "Edge" : /Chrome/i.test(ua) ? "Chrome" : /Firefox/i.test(ua) ? "Firefox" : /Safari/i.test(ua) ? "Safari" : "";
+  return { device: br ? `${os} · ${br}` : os, ip };
 }
 
 /** Parolni unutish: do'kon raqamiga do'kon boti orqali 6 xonali kod yuboriladi */
@@ -177,18 +198,26 @@ export async function adminReset(req: Request, res: Response) {
   res.json({ ok: true });
 }
 
-export function adminLogout(_req: Request, res: Response) {
+export async function adminLogout(req: Request, res: Response) {
+  const token = (req as Request & { cookies?: Record<string, string> }).cookies?.[adminCookieName(currentShopId())] || (req.header("authorization") || "").replace(/^Bearer /, "");
+  try { const p = jwt.verify(token, env.JWT_SECRET) as { jti?: string }; if (p.jti) await prisma.adminSession.delete({ where: { jti: p.jti } }).catch(() => {}); } catch { /* ignore */ }
   res.clearCookie(adminCookieName(currentShopId()), { path: "/" });
   res.json({ ok: true });
 }
 
-export function adminAuth(req: Request, res: Response, next: NextFunction) {
+export async function adminAuth(req: Request, res: Response, next: NextFunction) {
   const token = (req as Request & { cookies?: Record<string, string> }).cookies?.[adminCookieName(currentShopId())] || (req.header("authorization") || "").replace(/^Bearer /, "");
   try {
-    const payload = jwt.verify(token, env.JWT_SECRET) as { role?: string; shopId?: number };
+    const payload = jwt.verify(token, env.JWT_SECRET) as { role?: string; shopId?: number; jti?: string };
     if (payload.role !== "admin") throw new Error("no");
     // Boshqa do'kon ma'lumotiga kira olmaydi: token do'koni = so'rov do'koni bo'lishi shart
     if ((payload.shopId ?? DEFAULT_SHOP_ID) !== currentShopId()) throw new Error("wrong shop");
+    // Qurilma sessiyasi bekor qilingan bo'lsa (super-admin yoki limit) — kirish yopiladi
+    if (payload.jti) {
+      const s = await prisma.adminSession.findUnique({ where: { jti: payload.jti }, select: { id: true } });
+      if (!s) throw new Error("session revoked");
+      void prisma.adminSession.update({ where: { jti: payload.jti }, data: { lastSeenAt: new Date() } }).catch(() => {});
+    }
     next();
   } catch {
     res.status(401).json({ error: "unauthorized" });

@@ -168,10 +168,41 @@ model Shop {
   active         Boolean   @default(true)
   suspended      Boolean   @default(false)
   note           String?
+  /// Tarif qachon boshlangan
+  tariffStart    DateTime?
   /// Tarif qachongacha to'langan
   paidUntil      DateTime?
+  /// Bir vaqtda admin panelga kira oladigan qurilmalar soni (super-admin belgilaydi)
+  deviceLimit    Int       @default(3)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
+}
+
+/// Admin panel sessiyalari (qurilmalar) — ko'p qurilmani cheklash va super-admin nazorati uchun
+model AdminSession {
+  id         String   @id @default(cuid())
+  shopId     Int
+  /// JWT identifikatori (tokendagi jti) — sessiyani bekor qilish uchun
+  jti        String   @unique
+  device     String?
+  ip         String?
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  @@index([shopId])
+}
+
+/// Do'konlarning obuna (tarif) to'lovlari tarixi — super-admin kiritadi/ko'radi
+model ShopPayment {
+  id        Int      @id @default(autoincrement())
+  shopId    Int
+  amount    Float
+  tariff    String
+  months    Int      @default(1)
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([shopId])
 }
 
 /// Aksiya / chegirma qoidasi (savat darajasida qo'llanadi)

@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import { z } from "zod";
-import { prisma } from "../../db.ts";
-import { superAuth, superLogin, superLogout, superGoogle } from "../auth.ts";
+import { prisma, runWithShop } from "../../db.ts";
+import { superAuth, superLogin, superLogout, superGoogle, setAdminPassword } from "../auth.ts";
 import { env } from "../../env.ts";
 import { startShopBot, stopShopBot } from "../../bot/manager.ts";
 import { clearTariffCache } from "../../erp/limits.ts";
@@ -53,7 +53,9 @@ const shopBody = z.object({
   active: z.boolean().optional(),
   suspended: z.boolean().optional(),
   note: z.string().max(500).nullable().optional(),
+  tariffStart: z.string().nullable().optional(),
   paidUntil: z.string().nullable().optional(),
+  deviceLimit: z.number().int().min(1).max(100).optional(),
 });
 
 superRouter.get("/shops", async (_req, res) => {
@@ -104,7 +106,9 @@ superRouter.put("/shops/:id", async (req, res) => {
     if (b.active !== undefined) data.active = b.active;
     if (b.suspended !== undefined) data.suspended = b.suspended;
     if (b.note !== undefined) data.note = b.note || null;
+    if (b.tariffStart !== undefined) data.tariffStart = b.tariffStart ? new Date(b.tariffStart) : null;
     if (b.paidUntil !== undefined) data.paidUntil = b.paidUntil ? new Date(b.paidUntil) : null;
+    if (b.deviceLimit !== undefined) data.deviceLimit = b.deviceLimit;
     const shop = await prisma.shop.update({ where: { id: Number(req.params.id) }, data });
     if (shop.id !== 1) void syncShopBot(shop.id);
     res.json({ ok: true, id: shop.id });
@@ -112,8 +116,86 @@ superRouter.put("/shops/:id", async (req, res) => {
 });
 
 superRouter.delete("/shops/:id", async (req, res) => {
-  try { const id = Number(req.params.id); if (id !== 1) await stopShopBot(id); await prisma.shop.delete({ where: { id } }); res.json({ ok: true }); }
+  try { const id = Number(req.params.id); if (id !== 1) await stopShopBot(id); await prisma.adminSession.deleteMany({ where: { shopId: id } }); await prisma.shopPayment.deleteMany({ where: { shopId: id } }); await prisma.shop.delete({ where: { id } }); res.json({ ok: true }); }
   catch (e) { res.status(400).json({ error: errMsg(e) }); }
+});
+
+/** Do'kon batafsil ko'rinishi: ko'rsatkichlar, qurilmalar, bo'lim faolligi, to'lovlar */
+superRouter.get("/shops/:id", async (req, res) => {
+  const id = Number(req.params.id);
+  const shop = await prisma.shop.findUnique({ where: { id } });
+  if (!shop) { res.status(404).json({ error: "Do'kon topilmadi" }); return; }
+  const [users, customers, products, orders, ordersAgg, sections] = await runWithShop(id, () => Promise.all([
+    prisma.user.count(),
+    prisma.user.count({ where: { step: "done" } }),
+    prisma.product.count({ where: { isDeleted: false } }),
+    prisma.order.count(),
+    prisma.order.aggregate({ _sum: { total: true } }),
+    prisma.activityLog.groupBy({ by: ["type"], _count: { _all: true } }),
+  ]));
+  const [devices, payments] = await Promise.all([
+    prisma.adminSession.count({ where: { shopId: id } }),
+    prisma.shopPayment.findMany({ where: { shopId: id }, orderBy: { createdAt: "desc" }, take: 20 }),
+  ]);
+  res.json({
+    shop: { ...shop, botToken: shop.botToken ? "••••••" + shop.botToken.slice(-6) : null, hasToken: !!shop.botToken },
+    counts: { users, customers, products, orders, revenue: ordersAgg._sum.total || 0, devices },
+    sections: sections.map((r) => ({ type: r.type, count: r._count._all })).sort((a, b) => b.count - a.count),
+    payments,
+  });
+});
+
+/** Do'kon faoliyati (loglar) */
+superRouter.get("/shops/:id/logs", async (req, res) => {
+  const id = Number(req.params.id);
+  const logs = await runWithShop(id, () => prisma.activityLog.findMany({ orderBy: { createdAt: "desc" }, take: 100 }));
+  res.json(logs);
+});
+
+/** Qurilmalar (sessiyalar) ro'yxati */
+superRouter.get("/shops/:id/devices", async (req, res) => {
+  const devices = await prisma.adminSession.findMany({ where: { shopId: Number(req.params.id) }, orderBy: { lastSeenAt: "desc" } });
+  res.json(devices);
+});
+
+/** Qurilmani (sessiyani) bekor qilish — super-admin */
+superRouter.delete("/shops/:id/devices/:sid", async (req, res) => {
+  await prisma.adminSession.deleteMany({ where: { id: String(req.params.sid), shopId: Number(req.params.id) } });
+  res.json({ ok: true });
+});
+
+/** Do'kon admin parolini tiklash (super-admin yangisini o'rnatadi) */
+superRouter.post("/shops/:id/password", async (req, res) => {
+  const id = Number(req.params.id);
+  const pw = String((req.body as { password?: string })?.password || "");
+  try {
+    await runWithShop(id, () => setAdminPassword(pw));
+    // Barcha eski sessiyalarni bekor qilamiz (yangi parol bilan qayta kirsin)
+    await prisma.adminSession.deleteMany({ where: { shopId: id } });
+    res.json({ ok: true });
+  } catch (e) { res.status(400).json({ error: errMsg(e) }); }
+});
+
+/** Obuna to'lovlari tarixi */
+superRouter.get("/shops/:id/payments", async (req, res) => {
+  res.json(await prisma.shopPayment.findMany({ where: { shopId: Number(req.params.id) }, orderBy: { createdAt: "desc" } }));
+});
+
+/** To'lov qo'shish (ixtiyoriy: tarif muddatini uzaytiradi) */
+superRouter.post("/shops/:id/payments", async (req, res) => {
+  const id = Number(req.params.id);
+  try {
+    const b = z.object({ amount: z.number().min(0), tariff: z.string().max(20).optional(), months: z.number().int().min(1).max(60).optional(), note: z.string().max(300).optional(), extend: z.boolean().optional() }).parse(req.body);
+    const pay = await prisma.shopPayment.create({ data: { shopId: id, amount: b.amount, tariff: b.tariff || "", months: b.months || 1, note: b.note || null } });
+    if (b.extend) {
+      const shop = await prisma.shop.findUnique({ where: { id } });
+      const base = shop?.paidUntil && shop.paidUntil > new Date() ? new Date(shop.paidUntil) : new Date();
+      base.setMonth(base.getMonth() + (b.months || 1));
+      await prisma.shop.update({ where: { id }, data: { paidUntil: base, tariffStart: shop?.tariffStart || new Date(), suspended: false } });
+      if (id !== 1) void syncShopBot(id);
+    }
+    res.json({ ok: true, id: pay.id });
+  } catch (e) { res.status(400).json({ error: errMsg(e) }); }
 });
 
 superRouter.use((err: unknown, _req: Request, res: Response, _next: unknown) => {

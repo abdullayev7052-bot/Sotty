@@ -144,10 +144,12 @@ async function loadShops() {
           <div class="sub">/${esc(s.slug)} · ${esc(s.ownerName||"—")}${s.ownerPhone?" · "+esc(s.ownerPhone):""} · bot: ${s.hasToken ? (s.botUsername?("@"+esc(s.botUsername)):"ulangan") : "yo'q"}</div>
         </div>
         <a class="btn sm" href="/admin/?shop=${encodeURIComponent(s.slug)}" target="_blank" style="text-decoration:none">Admin</a>
+        <button class="btn sm" data-info>Batafsil</button>
         <button class="btn sm" data-edit>Tahrir</button>
         <button class="btn sm" data-sus>${s.suspended?"Faollashtirish":"To'xtatish"}</button>
         <button class="btn sm" data-del style="color:var(--rose)">O'chirish</button>
       </div>`);
+      r.querySelector("[data-info]").onclick = () => openDetail(s);
       r.querySelector("[data-edit]").onclick = () => openEditor(s);
       r.querySelector("[data-sus]").onclick = async () => { try { await api.put("/shops/"+s.id, { suspended: !s.suspended }); render(); } catch(e){ alert(e.message);} };
       r.querySelector("[data-del]").onclick = async () => { if(confirm(`"${s.name}" o'chirilsinmi?`)){ try{ await api.del("/shops/"+s.id); render(); }catch(e){ alert(e.message);} } };
@@ -156,10 +158,77 @@ async function loadShops() {
   } catch (e) { list.innerHTML = `<div class="row err">${esc(e.message)}</div>`; }
 }
 
+async function openDetail(s) {
+  const ov = el(`<div class="overlay"><div class="modal" style="max-width:640px"><div id="dbody">Yuklanmoqda…</div>
+    <div style="display:flex;justify-content:flex-end;margin-top:14px"><button class="btn ghost" id="dclose">Yopish</button></div></div></div>`);
+  const close = () => ov.remove();
+  ov.querySelector("#dclose").onclick = close;
+  ov.onclick = (e) => { if (e.target === ov) close(); };
+  document.body.appendChild(ov);
+  const body = ov.querySelector("#dbody");
+  const dt = (x) => x ? new Date(x).toLocaleDateString("uz") : "—";
+  try {
+    const d = await api.get("/shops/" + s.id);
+    const c = d.counts;
+    body.innerHTML = `
+      <h1 style="margin-bottom:2px">${esc(d.shop.name)}</h1>
+      <div class="muted" style="margin-bottom:12px">/${esc(d.shop.slug)} · ${esc(d.shop.ownerName||"—")} · ${esc(d.shop.ownerPhone||"raqam yo'q")}</div>
+      <div class="stats" style="grid-template-columns:repeat(3,1fr);margin-bottom:12px">
+        ${stat("Mijozlar", c.customers)}${stat("Mahsulotlar", c.products)}${stat("Buyurtmalar", c.orders)}
+        ${stat("Tushum", c.revenue)}${stat("Foydalanuvchilar", c.users)}${stat("Qurilmalar", c.devices)}
+      </div>
+      <div class="card" style="padding:12px;margin-bottom:12px">
+        <div><b>Tarif:</b> ${TARIFF[d.shop.tariff]||d.shop.tariff} · <b>Boshlanish:</b> ${dt(d.shop.tariffStart)} · <b>Tugash:</b> ${dt(d.shop.paidUntil)} · <b>Qurilma limiti:</b> ${d.shop.deviceLimit}</div>
+      </div>
+      <h3 style="margin:8px 0 6px">🔐 Admin parolini tiklash</h3>
+      <div style="display:flex;gap:8px"><input id="newpw" type="text" placeholder="yangi parol (kamida 6)" /><button class="btn primary" id="setpw">O'rnatish</button></div>
+      <div class="muted" style="font-size:12px;margin-top:4px">Parollar shifrlangan — ko'rsatib bo'lmaydi, faqat yangisini o'rnatish mumkin.</div>
+      <div id="pwmsg" style="margin-top:6px"></div>
+      <h3 style="margin:14px 0 8px">💳 Obuna to'lovlari</h3>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        <input id="pamt" type="number" placeholder="summa" style="max-width:120px" />
+        <input id="pmonths" type="number" value="1" min="1" style="max-width:70px" />
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px"><input type="checkbox" id="pext" style="width:auto" checked /> muddatni uzaytirsin</label>
+        <button class="btn sm primary" id="paddbtn">+ To'lov</button>
+      </div>
+      <div id="plist" style="margin-top:8px"></div>
+      <h3 style="margin:14px 0 8px">💻 Qurilmalar</h3>
+      <div id="devs"></div>
+      <h3 style="margin:14px 0 8px">📊 Bo'lim faolligi</h3>
+      <div id="secs">${d.sections.length ? d.sections.map((x) => `<span class="tag" style="margin:2px">${esc(x.type)}: ${x.count}</span>`).join("") : '<span class="muted">—</span>'}</div>
+      <h3 style="margin:14px 0 8px">🧾 So'nggi loglar</h3>
+      <button class="btn sm" id="loadlogs">Loglarni ko'rsatish</button>
+      <div id="logs" style="margin-top:8px"></div>`;
+    const renderPays = (pays) => { ov.querySelector("#plist").innerHTML = pays.length ? pays.map((p) => `<div class="row" style="padding:6px 0"><div style="flex:1">${money(p.amount)}${p.tariff?(" · "+esc(p.tariff)):""}${p.months?(" · "+p.months+" oy"):""}${p.note?(" · "+esc(p.note)):""}</div><div class="muted" style="font-size:12px">${new Date(p.createdAt).toLocaleDateString("uz")}</div></div>`).join("") : '<span class="muted">To\'lovlar yo\'q</span>'; };
+    renderPays(d.payments);
+    const loadDevs = async () => {
+      const devs = await api.get("/shops/" + s.id + "/devices");
+      ov.querySelector("#devs").innerHTML = devs.length ? devs.map((x) => `<div class="row" style="padding:6px 0"><div style="flex:1">${esc(x.device||"?")}${x.ip?(" · "+esc(x.ip)):""}<div class="muted" style="font-size:11px">oxirgi: ${new Date(x.lastSeenAt).toLocaleString("uz")}</div></div><button class="btn sm" data-rev="${x.id}" style="color:var(--rose)">Chiqarish</button></div>`).join("") : '<span class="muted">Faol qurilma yo\'q</span>';
+      ov.querySelectorAll("[data-rev]").forEach((b) => b.onclick = async () => { await api.del("/shops/" + s.id + "/devices/" + b.getAttribute("data-rev")); loadDevs(); });
+    };
+    loadDevs();
+    ov.querySelector("#setpw").onclick = async () => {
+      const pw = ov.querySelector("#newpw").value.trim(); const m = ov.querySelector("#pwmsg");
+      try { await api.post("/shops/" + s.id + "/password", { password: pw }); m.innerHTML = '<span style="color:var(--green)">✅ Parol yangilandi</span>'; ov.querySelector("#newpw").value = ""; }
+      catch (e) { m.innerHTML = '<span class="err">' + esc(e.message) + '</span>'; }
+    };
+    ov.querySelector("#paddbtn").onclick = async () => {
+      const amount = Number(ov.querySelector("#pamt").value) || 0, months = Number(ov.querySelector("#pmonths").value) || 1, extend = ov.querySelector("#pext").checked;
+      try { await api.post("/shops/" + s.id + "/payments", { amount, months, extend, tariff: d.shop.tariff }); ov.querySelector("#pamt").value = ""; renderPays(await api.get("/shops/" + s.id + "/payments")); }
+      catch (e) { alert(e.message); }
+    };
+    ov.querySelector("#loadlogs").onclick = async () => {
+      const logs = await api.get("/shops/" + s.id + "/logs");
+      ov.querySelector("#logs").innerHTML = logs.length ? logs.slice(0, 40).map((l) => `<div style="font-size:12px;padding:3px 0;border-bottom:1px solid var(--line)"><b>${esc(l.type)}</b> ${esc(l.message)} <span class="muted">${new Date(l.createdAt).toLocaleString("uz")}</span></div>`).join("") : '<span class="muted">Loglar yo\'q</span>';
+    };
+  } catch (e) { body.innerHTML = `<div class="err">${esc(e.message)}</div>`; }
+}
+
 function openEditor(s) {
   const isNew = !s;
   s = s || { tariff:"free", active:true, suspended:false };
   const paid = s.paidUntil ? new Date(s.paidUntil).toISOString().slice(0,10) : "";
+  const started = s.tariffStart ? new Date(s.tariffStart).toISOString().slice(0,10) : "";
   const ov = el(`<div class="overlay"><div class="modal">
     <h1 style="margin-bottom:12px">${isNew?"Yangi do'kon":"Do'konni tahrirlash"}</h1>
     <label>Do'kon nomi *</label><input id="name" value="${esc(s.name||"")}" />
@@ -176,7 +245,11 @@ function openEditor(s) {
         <option value="pro"${s.tariff==='pro'?' selected':''}>Pro</option></select></div>
     </div>
     <div class="grid2">
+      <div><label>Tarif boshlanishi</label><input type="date" id="tariffStart" value="${started}" /></div>
       <div><label>Tarif muddati (gacha)</label><input type="date" id="paidUntil" value="${paid}" /></div>
+    </div>
+    <div class="grid2">
+      <div><label>Qurilmalar limiti</label><input type="number" id="deviceLimit" min="1" max="100" value="${s.deviceLimit||3}" /></div>
       <div><label>URL kaliti (slug)</label><input id="slug" value="${esc(s.slug||"")}" placeholder="avtomatik" /></div>
     </div>
     <label>Izoh</label><input id="note" value="${esc(s.note||"")}" />
@@ -191,7 +264,7 @@ function openEditor(s) {
   ov.onclick = (e) => { if (e.target === ov) close(); };
   ov.querySelector("#save").onclick = async () => {
     const g = (id) => ov.querySelector("#"+id).value.trim();
-    const body = { name:g("name"), ownerName:g("ownerName"), ownerPhone:g("ownerPhone"), botToken:g("botToken"), botUsername:g("botUsername"), tariff:g("tariff"), slug:g("slug"), note:g("note"), paidUntil:g("paidUntil")||null, active:ov.querySelector("#active").checked };
+    const body = { name:g("name"), ownerName:g("ownerName"), ownerPhone:g("ownerPhone"), botToken:g("botToken"), botUsername:g("botUsername"), tariff:g("tariff"), slug:g("slug"), note:g("note"), tariffStart:g("tariffStart")||null, paidUntil:g("paidUntil")||null, deviceLimit:Number(g("deviceLimit"))||3, active:ov.querySelector("#active").checked };
     const err = ov.querySelector("#merr");
     try { if (isNew) await api.post("/shops", body); else await api.put("/shops/"+s.id, body); close(); render(); }
     catch (x) { err.textContent = x.message; err.style.display = "block"; }
