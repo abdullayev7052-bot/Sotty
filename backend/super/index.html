@@ -67,8 +67,11 @@ async function boot() {
   try { await api.get("/me"); render(); } catch { renderLogin(); }
 }
 
-function renderLogin() {
+async function renderLogin() {
   app.innerHTML = "";
+  let cfg = {};
+  try { cfg = await api.get("/config"); } catch {}
+  if (cfg && cfg.google) { renderGoogleLogin(cfg); return; }
   const box = el(`<div class="center"><form class="card" style="padding:28px;max-width:360px;width:100%">
     <h1 style="text-align:center;margin-bottom:4px">Sotty — Platforma</h1>
     <div class="muted" style="text-align:center;margin-bottom:16px">Eng yuqori admin paneli</div>
@@ -83,6 +86,31 @@ function renderLogin() {
     catch (x) { err.textContent = x.message; err.style.display = "block"; }
   };
   app.appendChild(box);
+}
+
+/** Google Sign-In (faqat ruxsat etilgan gmail) */
+function renderGoogleLogin(cfg) {
+  const box = el(`<div class="center"><div class="card" style="padding:28px;max-width:360px;width:100%;text-align:center">
+    <h1 style="margin-bottom:4px">Sotty — Platforma</h1>
+    <div class="muted" style="margin-bottom:18px">Eng yuqori admin paneli</div>
+    <div id="gbtn" style="display:flex;justify-content:center"></div>
+    <div class="err" id="err" style="display:none;margin-top:12px"></div>
+    <div class="muted" style="margin-top:14px;font-size:12px">Faqat ruxsat etilgan Google akkaunti kira oladi</div>
+  </div></div>`);
+  app.appendChild(box);
+  const err = box.querySelector("#err");
+  const onCred = async (resp) => {
+    try { await api.post("/google", { credential: resp.credential }); render(); }
+    catch (x) { err.textContent = x.message; err.style.display = "block"; }
+  };
+  const init = () => {
+    if (!window.google || !google.accounts || !google.accounts.id) { setTimeout(init, 300); return; }
+    google.accounts.id.initialize({ client_id: cfg.google, callback: onCred });
+    google.accounts.id.renderButton(box.querySelector("#gbtn"), { theme: "filled_blue", size: "large", text: "signin_with", shape: "pill", width: 280 });
+  };
+  if (!document.getElementById("gis")) {
+    const s = document.createElement("script"); s.id = "gis"; s.src = "https://accounts.google.com/gsi/client"; s.async = true; s.defer = true; s.onload = init; document.head.appendChild(s);
+  } else init();
 }
 
 async function render() {

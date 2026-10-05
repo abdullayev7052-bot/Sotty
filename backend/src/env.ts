@@ -23,8 +23,12 @@ export const env = {
   BOT_TOKEN: req("BOT_TOKEN"),
   ADMIN_TELEGRAM_ID: process.env.ADMIN_TELEGRAM_ID || "",
   ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || "admin123",
-  /// Eng yuqori (platforma) admin paroli — do'konlarni boshqarish uchun
+  /// Eng yuqori (platforma) admin paroli — do'konlarni boshqarish uchun (Google sozlanmaган bo'lsa zaxira sifatida)
   SUPER_ADMIN_PASSWORD: process.env.SUPER_ADMIN_PASSWORD || "super123",
+  /// Super-admin Google Sign-In: faqat shu Google akkaunti kira oladi
+  SUPER_ADMIN_EMAIL: (process.env.SUPER_ADMIN_EMAIL || "abdullayev7052@gmail.com").toLowerCase(),
+  /// Google OAuth Client ID (Google Cloud Console → Credentials). Bo'sh bo'lsa — parol bilan kirish ishlaydi.
+  GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || "",
   JWT_SECRET: process.env.JWT_SECRET || "change-me-secret",
   PORT: Number(process.env.PORT || 4000),
   PUBLIC_URL: (process.env.PUBLIC_URL || "").replace(/\/+$/, ""),

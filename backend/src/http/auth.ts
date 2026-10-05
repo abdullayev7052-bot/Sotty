@@ -195,11 +195,31 @@ export function adminAuth(req: Request, res: Response, next: NextFunction) {
 const SUPER_COOKIE = "super_token";
 
 export function superLogin(req: Request, res: Response) {
+  // Google sozlangan bo'lsa — parol bilan kirish o'chiq (faqat Google orqali)
+  if (env.GOOGLE_CLIENT_ID) { res.status(403).json({ error: "Faqat Google orqali kiring" }); return; }
   const password = String((req.body as { password?: string })?.password || "");
   if (!password || password !== env.SUPER_ADMIN_PASSWORD) { res.status(401).json({ error: "Parol noto'g'ri" }); return; }
   const token = jwt.sign({ role: "super" }, env.JWT_SECRET, { expiresIn: "7d" });
   res.cookie(SUPER_COOKIE, token, { httpOnly: true, sameSite: "lax", maxAge: 7 * 24 * 3600 * 1000, path: "/" });
   res.json({ ok: true });
+}
+
+/** Super-admin Google Sign-In: faqat ruxsat etilgan gmail (env.SUPER_ADMIN_EMAIL) kira oladi */
+export async function superGoogle(req: Request, res: Response) {
+  const idToken = String((req.body as { credential?: string })?.credential || "");
+  if (!idToken) { res.status(400).json({ error: "Token yo'q" }); return; }
+  try {
+    const r = await fetch("https://oauth2.googleapis.com/tokeninfo?id_token=" + encodeURIComponent(idToken));
+    const d = (await r.json().catch(() => ({}))) as { aud?: string; email?: string; email_verified?: string | boolean };
+    if (!r.ok || !d.email) { res.status(401).json({ error: "Google tasdiqlamadi" }); return; }
+    if (env.GOOGLE_CLIENT_ID && d.aud !== env.GOOGLE_CLIENT_ID) { res.status(401).json({ error: "Ilova (Client ID) mos emas" }); return; }
+    const email = String(d.email).toLowerCase();
+    const verified = d.email_verified === true || d.email_verified === "true";
+    if (!verified || email !== env.SUPER_ADMIN_EMAIL) { res.status(403).json({ error: "Bu Google akkaunti ruxsat etilmagan" }); return; }
+    const token = jwt.sign({ role: "super", email }, env.JWT_SECRET, { expiresIn: "7d" });
+    res.cookie(SUPER_COOKIE, token, { httpOnly: true, sameSite: "lax", maxAge: 7 * 24 * 3600 * 1000, path: "/" });
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: errMsg(e) }); }
 }
 
 export function superLogout(_req: Request, res: Response) {

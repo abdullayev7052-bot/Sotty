@@ -1,7 +1,8 @@
 import { Router, type Request, type Response } from "express";
 import { z } from "zod";
 import { prisma } from "../../db.ts";
-import { superAuth, superLogin, superLogout } from "../auth.ts";
+import { superAuth, superLogin, superLogout, superGoogle } from "../auth.ts";
+import { env } from "../../env.ts";
 import { startShopBot, stopShopBot } from "../../bot/manager.ts";
 import { clearTariffCache } from "../../erp/limits.ts";
 import { errMsg, log } from "../../logger.ts";
@@ -16,7 +17,10 @@ async function syncShopBot(shopId: number) {
 
 export const superRouter = Router();
 
+// Ochiq (autentifikatsiyasiz) endpointlar
+superRouter.get("/config", (_req, res) => { res.json({ google: env.GOOGLE_CLIENT_ID || null, email: env.SUPER_ADMIN_EMAIL }); });
 superRouter.post("/login", superLogin);
+superRouter.post("/google", superGoogle);
 superRouter.post("/logout", superLogout);
 superRouter.use(superAuth);
 superRouter.get("/me", (_req, res) => { res.json({ ok: true }); });
