@@ -112,8 +112,8 @@ async function loadShops() {
       const r = el(`<div class="row">
         <div style="flex:1;min-width:0">
           <div class="nm">${esc(s.name)} <span class="tag ${s.tariff==='pro'?'pro':''}">${TARIFF[s.tariff]||s.tariff}</span>
-            ${s.suspended ? '<span class="tag off">to\\'xtatilgan</span>' : (s.active ? '<span class="tag on">faol</span>' : '<span class="tag off">o\\'chiq</span>')}</div>
-          <div class="sub">/${esc(s.slug)} · ${esc(s.ownerName||"—")}${s.ownerPhone?" · "+esc(s.ownerPhone):""} · bot: ${s.hasToken ? (s.botUsername?("@"+esc(s.botUsername)):"ulangan") : "yo\\'q"}</div>
+            ${s.suspended ? '<span class="tag off">to\'xtatilgan</span>' : (s.active ? '<span class="tag on">faol</span>' : '<span class="tag off">o\'chiq</span>')}</div>
+          <div class="sub">/${esc(s.slug)} · ${esc(s.ownerName||"—")}${s.ownerPhone?" · "+esc(s.ownerPhone):""} · bot: ${s.hasToken ? (s.botUsername?("@"+esc(s.botUsername)):"ulangan") : "yo'q"}</div>
         </div>
         <a class="btn sm" href="/admin/?shop=${encodeURIComponent(s.slug)}" target="_blank" style="text-decoration:none">Admin</a>
         <button class="btn sm" data-edit>Tahrir</button>
