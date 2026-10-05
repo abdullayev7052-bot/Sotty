@@ -4,12 +4,15 @@ export class ApiError extends Error {
 
 const BASE = "/api/admin";
 
-/** Do'kon slug'i (ko'p-do'kon): ?shop=... URL'da bo'lsa shu do'kon admini */
+/** Do'kon slug'i (ko'p-do'kon): ?shop=... URL'da bo'lsa shu do'kon admini.
+ *  sessionStorage ishlatamiz (localStorage emas): u HAR TAB uchun alohida, shuning uchun
+ *  bitta brauzerda turli tablarda turli do'konlarga bir vaqtda kirish mumkin va
+ *  bir do'kon boshqasining kontekstiga aralashmaydi. ?shop yo'q bo'lsa — asosiy do'kon. */
 function shopHeaders(): Record<string, string> {
   try {
     const u = new URLSearchParams(location.search).get("shop");
-    if (u) { localStorage.setItem("sotty_admin_shop", u); return { "X-Shop": u }; }
-    const saved = localStorage.getItem("sotty_admin_shop");
+    if (u) { sessionStorage.setItem("sotty_admin_shop", u); return { "X-Shop": u }; }
+    const saved = sessionStorage.getItem("sotty_admin_shop");
     return saved ? { "X-Shop": saved } : {};
   } catch { return {}; }
 }

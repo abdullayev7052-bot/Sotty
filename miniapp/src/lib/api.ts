@@ -11,8 +11,8 @@ function shopSlug(): string {
   try {
     const startParam = (tg as { initDataUnsafe?: { start_param?: string } } | null)?.initDataUnsafe?.start_param || "";
     const u = new URLSearchParams(location.search).get("shop") || startParam;
-    if (u) { localStorage.setItem("sotty_shop", u); return u; }
-    return localStorage.getItem("sotty_shop") || "";
+    if (u) { sessionStorage.setItem("sotty_shop", u); return u; }
+    return sessionStorage.getItem("sotty_shop") || "";
   } catch { return ""; }
 }
 

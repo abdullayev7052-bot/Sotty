@@ -58,7 +58,9 @@ adminRouter.put("/settings/:section", async (req, res) => {
   const before = getSettings();
   if (section === "general" && typeof patch.botToken === "string" && patch.botToken.startsWith("••••")) delete patch.botToken;
   if (section === "general" && typeof patch.adminPassword === "string" && patch.adminPassword.trim()) {
-    await setAdminPassword(patch.adminPassword.trim());
+    const pw = patch.adminPassword.trim();
+    if (pw.length < 6) { res.status(400).json({ error: "Parol kamida 6 ta belgidan iborat bo'lishi kerak" }); return; }
+    await setAdminPassword(pw);
     await activity("admin", "Admin paroli o'zgartirildi");
   }
   if (section === "general") patch.adminPassword = "";

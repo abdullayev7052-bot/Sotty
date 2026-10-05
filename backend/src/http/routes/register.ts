@@ -29,7 +29,7 @@ const body = z.object({
   ownerName: z.string().trim().max(120).optional(),
   ownerPhone: z.string().trim().max(40).optional(),
   botToken: z.string().trim().regex(/^\d{6,}:[A-Za-z0-9_-]{30,}$/, "Bot tokeni noto'g'ri"),
-  adminPassword: z.string().min(4).max(100),
+  adminPassword: z.string().min(6, "Parol kamida 6 ta belgidan iborat bo'lishi kerak").max(100),
   tariff: z.enum(["free", "basic", "pro"]).optional(),
 });
 

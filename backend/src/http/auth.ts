@@ -85,7 +85,10 @@ export async function appAuth(req: Request, res: Response, next: NextFunction) {
 
 // ---------------- Admin ----------------
 
-const COOKIE = "admin_token";
+const COOKIE_BASE = "admin_token";
+/** Har do'kon uchun alohida cookie — bitta brauzerda bir nechta do'konga bir vaqtda kirish mumkin bo'lsin
+ *  (umumiy bitta cookie bo'lsa, bir do'konga kirish boshqasidan chiqarib yuborardi). */
+function adminCookieName(shopId: number): string { return `${COOKIE_BASE}_${shopId}`; }
 
 export async function getAdminPasswordHash(): Promise<string> {
   const row = await prisma.setting.findUnique({ where: { shopId_key: { shopId: currentShopId(), key: "auth" } } });
@@ -94,7 +97,10 @@ export async function getAdminPasswordHash(): Promise<string> {
   return bcrypt.hashSync(env.ADMIN_PASSWORD, 8);
 }
 
+export const ADMIN_PASSWORD_MIN = 6;
+
 export async function setAdminPassword(password: string) {
+  if (!password || password.length < ADMIN_PASSWORD_MIN) throw new Error(`Parol kamida ${ADMIN_PASSWORD_MIN} ta belgidan iborat bo'lishi kerak`);
   const passwordHash = bcrypt.hashSync(password, 10);
   const sid = currentShopId();
   await prisma.setting.upsert({ where: { shopId_key: { shopId: sid, key: "auth" } }, create: { shopId: sid, key: "auth", value: { passwordHash } }, update: { value: { passwordHash } } });
@@ -105,18 +111,19 @@ export async function adminLogin(req: Request, res: Response) {
   const hash = await getAdminPasswordHash();
   if (!password || !bcrypt.compareSync(password, hash)) { res.status(401).json({ error: "Parol noto'g'ri" }); return; }
   // Admin faqat o'z do'koniga bog'lanadi (ko'p-do'kon izolyatsiyasi)
-  const token = jwt.sign({ role: "admin", shopId: currentShopId() }, env.JWT_SECRET, { expiresIn: "7d" });
-  res.cookie(COOKIE, token, { httpOnly: true, sameSite: "lax", maxAge: 7 * 24 * 3600 * 1000, path: "/" });
+  const sid = currentShopId();
+  const token = jwt.sign({ role: "admin", shopId: sid }, env.JWT_SECRET, { expiresIn: "7d" });
+  res.cookie(adminCookieName(sid), token, { httpOnly: true, sameSite: "lax", maxAge: 7 * 24 * 3600 * 1000, path: "/" });
   res.json({ ok: true });
 }
 
 export function adminLogout(_req: Request, res: Response) {
-  res.clearCookie(COOKIE, { path: "/" });
+  res.clearCookie(adminCookieName(currentShopId()), { path: "/" });
   res.json({ ok: true });
 }
 
 export function adminAuth(req: Request, res: Response, next: NextFunction) {
-  const token = (req as Request & { cookies?: Record<string, string> }).cookies?.[COOKIE] || (req.header("authorization") || "").replace(/^Bearer /, "");
+  const token = (req as Request & { cookies?: Record<string, string> }).cookies?.[adminCookieName(currentShopId())] || (req.header("authorization") || "").replace(/^Bearer /, "");
   try {
     const payload = jwt.verify(token, env.JWT_SECRET) as { role?: string; shopId?: number };
     if (payload.role !== "admin") throw new Error("no");
