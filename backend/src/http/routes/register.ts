@@ -7,6 +7,7 @@ import { Bot } from "grammy";
 import { z } from "zod";
 import { prisma, runWithShop } from "../../db.ts";
 import { setAdminPassword } from "../auth.ts";
+import { normalizePhone } from "../../utils/format.ts";
 import { startShopBot } from "../../bot/manager.ts";
 import { errMsg, log } from "../../logger.ts";
 
@@ -27,7 +28,7 @@ async function uniqueSlug(base: string): Promise<string> {
 const body = z.object({
   name: z.string().trim().min(2).max(120),
   ownerName: z.string().trim().max(120).optional(),
-  ownerPhone: z.string().trim().max(40).optional(),
+  ownerPhone: z.string().trim().min(7, "Telefon raqamini kiriting").max(40),
   botToken: z.string().trim().regex(/^\d{6,}:[A-Za-z0-9_-]{30,}$/, "Bot tokeni noto'g'ri"),
   adminPassword: z.string().min(6, "Parol kamida 6 ta belgidan iborat bo'lishi kerak").max(100),
   tariff: z.enum(["free", "basic", "pro"]).optional(),
@@ -37,6 +38,8 @@ registerRouter.post("/", async (req, res) => {
   const parsed = body.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.issues[0]?.message || "Ma'lumotlar noto'g'ri" }); return; }
   const b = parsed.data;
+  const ownerPhone = normalizePhone(b.ownerPhone);
+  if (!ownerPhone) { res.status(400).json({ error: "Telefon raqami noto'g'ri" }); return; }
   // Bir xil token bilan allaqachon do'kon bormi
   if (await prisma.shop.findFirst({ where: { botToken: b.botToken }, select: { id: true } })) {
     res.status(400).json({ error: "Bu bot allaqachon ro'yxatdan o'tgan" }); return;
@@ -49,7 +52,7 @@ registerRouter.post("/", async (req, res) => {
   try {
     const slug = await uniqueSlug(b.name);
     const shop = await prisma.shop.create({ data: {
-      slug, name: b.name, ownerName: b.ownerName || null, ownerPhone: b.ownerPhone || null,
+      slug, name: b.name, ownerName: b.ownerName || null, ownerPhone,
       botToken: b.botToken, botUsername: username, tariff: b.tariff || "free", active: true, suspended: false,
     } });
     // Do'kon admin paroli (o'z do'koni konteksti ichida)

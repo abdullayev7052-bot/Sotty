@@ -37,10 +37,11 @@ function form() {
   root.innerHTML = `<form class="card" id="f">
     <label>Do'kon nomi *</label><input id="name" placeholder="Masalan: Qo'qon Market" required />
     <label>Egasi (ism)</label><input id="ownerName" />
-    <label>Telefon</label><input id="ownerPhone" placeholder="+998..." />
+    <label>Telefon raqami * (admin panelga login)</label><input id="ownerPhone" placeholder="+998 90 123 45 67" required />
+    <div class="help">Shu raqam — admin panelga kirish loginingiz. Parolni unutsangiz, tiklash kodi shu raqamga (bot orqali) yuboriladi.</div>
     <label>Telegram bot tokeni *</label><input id="botToken" placeholder="7712...:AAE..." required />
     <div class="help">@BotFather → /newbot → tokenni shu yerga qo'ying</div>
-    <label>Admin panel paroli *</label><input id="adminPassword" type="password" placeholder="kamida 4 belgi" required />
+    <label>Admin panel paroli *</label><input id="adminPassword" type="password" placeholder="kamida 6 belgi" required />
     <label>Tarif</label><select id="tariff"><option value="free">Bepul</option><option value="basic">Basic</option><option value="pro">Pro</option></select>
     <div class="err" id="err" style="display:none"></div>
     <button class="btn" type="submit" id="go">Do'konni yaratish</button>
@@ -68,7 +69,7 @@ function success(j) {
     <div class="sub">Botingiz: <code>@${esc(j.botUsername||"")}</code> — endi ishlayapti</div>
     <a class="link" href="${esc(j.adminUrl)}">🖥 Admin panelga kirish</a>
     <a class="link" href="${esc(j.appUrl)}">📱 Mini App (do'kon)</a>
-    <div class="help" style="margin-top:14px">Admin panelga kiritgan parolingiz bilan kiring va mahsulotlaringizni qo'shing. Botingizni Telegramda oching → /start.</div>
+    <div class="help" style="margin-top:14px"><b>Muhim:</b> admin panelga <b>telefon raqami + parol</b> bilan kirasiz. Parolni tiklash ishlashi uchun botingizni Telegramda oching → <b>/start</b> bosing → <b>telefon raqamingizni ulashing</b> (kontakt tugmasi). Shunda unutilgan parol kodi shu raqamga keladi.</div>
   </div>`;
 }
 form();

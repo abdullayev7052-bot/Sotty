@@ -15,6 +15,7 @@ import { PromotionsPage } from "./pages/Promotions.tsx";
 import { ActivityPage, BroadcastPage, GroupsPage, WaitlistPage } from "./pages/Misc.tsx";
 import { BotPage } from "./pages/Integration.tsx";
 import { SearchPalette, useSearchHotkey } from "./components/Search.tsx";
+import { PhoneInput } from "./components/PhoneInput.tsx";
 import { NAV, type NavItem } from "./lib/nav.ts";
 
 const qc = new QueryClient({ defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } } });
@@ -50,21 +51,62 @@ function Logo({ b, size = 32 }: { b?: Branding; size?: number }) {
 
 function Login({ onOk, b }: { onOk: () => void; b?: Branding }) {
   const t = useT();
+  const [mode, setMode] = useState<"login" | "forgot" | "reset">("login");
+  const [phone, setPhone] = useState("");
   const [pw, setPw] = useState("");
+  const [code, setCode] = useState("");
+  const [np, setNp] = useState("");
   const [err, setErr] = useState("");
+  const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault(); setBusy(true); setErr("");
-    try { await api.post("/login", { password: pw }); onOk(); } catch (x) { setErr((x as Error).message); } finally { setBusy(false); }
+
+  const run = async (fn: () => Promise<void>) => {
+    setBusy(true); setErr("");
+    try { await fn(); } catch (x) { setErr((x as Error).message); } finally { setBusy(false); }
   };
+  const doLogin = (e: React.FormEvent) => { e.preventDefault(); run(async () => { await api.post("/login", { phone, password: pw }); onOk(); }); };
+  const doForgot = (e: React.FormEvent) => { e.preventDefault(); run(async () => { await api.post("/forgot", { phone }); setMsg(t("codeSentHint")); setMode("reset"); }); };
+  const doReset = (e: React.FormEvent) => { e.preventDefault(); run(async () => { await api.post("/reset", { phone, code, newPassword: np }); setMsg(t("passwordChanged")); setPw(""); setMode("login"); }); };
+
+  const header = (
+    <div className="text-center"><div className="mb-2 flex justify-center"><Logo b={b} size={56} /></div><div className="text-xl font-bold">{b?.title || "Admin panel"}</div><div className="text-sm text-slate-500">{b?.businessName || ""}</div></div>
+  );
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
-      <form onSubmit={submit} className="card p-8 w-full max-w-sm space-y-4">
-        <div className="text-center"><div className="mb-2 flex justify-center"><Logo b={b} size={56} /></div><div className="text-xl font-bold">{b?.title || "Admin panel"}</div><div className="text-sm text-slate-500">{b?.businessName || ""}</div></div>
-        <div><label className="label">{t("password")}</label><input type="password" className="input" value={pw} onChange={(e) => setPw(e.target.value)} autoFocus /></div>
-        {err && <div className="text-sm text-red-600">{err}</div>}
-        <button className="btn btn-primary w-full justify-center" disabled={busy}>{t("login")}</button>
-      </form>
+      {mode === "login" && (
+        <form onSubmit={doLogin} className="card p-8 w-full max-w-sm space-y-4">
+          {header}
+          <div><label className="label">{t("phone")}</label><PhoneInput value={phone} onChange={setPhone} autoFocus /></div>
+          <div><label className="label">{t("password")}</label><input type="password" className="input" value={pw} onChange={(e) => setPw(e.target.value)} /></div>
+          {msg && <div className="text-sm text-green-600">{msg}</div>}
+          {err && <div className="text-sm text-red-600">{err}</div>}
+          <button className="btn btn-primary w-full justify-center" disabled={busy}>{t("login")}</button>
+          <button type="button" className="text-sm text-[var(--primary)] w-full text-center" onClick={() => { setMode("forgot"); setErr(""); setMsg(""); }}>{t("forgotPassword")}</button>
+        </form>
+      )}
+      {mode === "forgot" && (
+        <form onSubmit={doForgot} className="card p-8 w-full max-w-sm space-y-4">
+          {header}
+          <div className="text-center font-semibold">{t("resetTitle")}</div>
+          <div><label className="label">{t("phone")}</label><PhoneInput value={phone} onChange={setPhone} autoFocus /></div>
+          {err && <div className="text-sm text-red-600">{err}</div>}
+          <button className="btn btn-primary w-full justify-center" disabled={busy}>{t("sendCode")}</button>
+          <button type="button" className="text-sm text-slate-500 w-full text-center" onClick={() => { setMode("login"); setErr(""); }}>{t("backToLogin")}</button>
+        </form>
+      )}
+      {mode === "reset" && (
+        <form onSubmit={doReset} className="card p-8 w-full max-w-sm space-y-4">
+          {header}
+          <div className="text-center font-semibold">{t("resetTitle")}</div>
+          {msg && <div className="text-sm text-green-600">{msg}</div>}
+          <div><label className="label">{t("code")}</label><input className="input" inputMode="numeric" value={code} onChange={(e) => setCode(e.target.value.replace(/[^\d]/g, "").slice(0, 6))} autoFocus /></div>
+          <div><label className="label">{t("newPassword")}</label><input type="password" className="input" value={np} onChange={(e) => setNp(e.target.value)} /></div>
+          {err && <div className="text-sm text-red-600">{err}</div>}
+          <button className="btn btn-primary w-full justify-center" disabled={busy}>{t("save")}</button>
+          <button type="button" className="text-sm text-slate-500 w-full text-center" onClick={() => { setMode("login"); setErr(""); }}>{t("backToLogin")}</button>
+        </form>
+      )}
     </div>
   );
 }

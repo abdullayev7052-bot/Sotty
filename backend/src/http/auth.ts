@@ -6,9 +6,11 @@ import type { User } from "@prisma/client";
 import { env } from "../env.ts";
 import { prisma, currentShopId, runWithShop, DEFAULT_SHOP_ID } from "../db.ts";
 import { normalizeLang, getSettings } from "../settings/store.ts";
-import { tokenForShop, shopIdBySlug } from "../bot/manager.ts";
+import { tokenForShop, shopIdBySlug, botForShop } from "../bot/manager.ts";
 import { isShopInactive } from "../erp/limits.ts";
 import { touchUser } from "../analytics/track.ts";
+import { normalizePhone } from "../utils/format.ts";
+import { errMsg } from "../logger.ts";
 
 export interface TgInitUser { id: number; first_name?: string; last_name?: string; username?: string; language_code?: string }
 
@@ -106,14 +108,67 @@ export async function setAdminPassword(password: string) {
   await prisma.setting.upsert({ where: { shopId_key: { shopId: sid, key: "auth" } }, create: { shopId: sid, key: "auth", value: { passwordHash } }, update: { value: { passwordHash } } });
 }
 
+/** Do'konga biriktirilgan telefon raqami (login identifikatori). Bo'sh bo'lsa — hali ulanmagan. */
+async function shopOwnerPhone(shopId: number): Promise<string> {
+  const shop = await prisma.shop.findUnique({ where: { id: shopId }, select: { ownerPhone: true } });
+  return normalizePhone(shop?.ownerPhone || "");
+}
+
 export async function adminLogin(req: Request, res: Response) {
-  const password = String((req.body as { password?: string })?.password || "");
+  const b = (req.body || {}) as { phone?: string; password?: string };
+  const password = String(b.password || "");
+  const sid = currentShopId();
+  // Xavfsizlik: do'konga telefon biriktirilgan bo'lsa — login raqami aynan mos kelishi SHART.
+  const storedPhone = await shopOwnerPhone(sid);
+  if (storedPhone) {
+    const given = normalizePhone(String(b.phone || ""));
+    if (!given || given !== storedPhone) { res.status(401).json({ error: "Bu telefon raqami bu do'konga biriktirilmagan" }); return; }
+  }
   const hash = await getAdminPasswordHash();
   if (!password || !bcrypt.compareSync(password, hash)) { res.status(401).json({ error: "Parol noto'g'ri" }); return; }
   // Admin faqat o'z do'koniga bog'lanadi (ko'p-do'kon izolyatsiyasi)
-  const sid = currentShopId();
   const token = jwt.sign({ role: "admin", shopId: sid }, env.JWT_SECRET, { expiresIn: "7d" });
   res.cookie(adminCookieName(sid), token, { httpOnly: true, sameSite: "lax", maxAge: 7 * 24 * 3600 * 1000, path: "/" });
+  res.json({ ok: true });
+}
+
+/** Parolni unutish: do'kon raqamiga do'kon boti orqali 6 xonali kod yuboriladi */
+export async function adminForgot(req: Request, res: Response) {
+  const sid = currentShopId();
+  const storedPhone = await shopOwnerPhone(sid);
+  const given = normalizePhone(String((req.body as { phone?: string })?.phone || ""));
+  if (!storedPhone || !given || given !== storedPhone) { res.status(400).json({ error: "Bu telefon raqami bu do'konga biriktirilmagan" }); return; }
+  // Egasini bot foydalanuvchisi sifatida topamiz (kod yuborish uchun telegramId kerak)
+  const owner = await prisma.user.findFirst({ where: { phone: storedPhone }, select: { telegramId: true } });
+  if (!owner) { res.status(400).json({ error: "Avval do'kon botini oching, /start bosib telefon raqamingizni ulang" }); return; }
+  const code = String(Math.floor(100000 + Math.random() * 900000));
+  const value = { codeHash: bcrypt.hashSync(code, 8), expiresAt: Date.now() + 10 * 60 * 1000, attempts: 0 };
+  await prisma.setting.upsert({ where: { shopId_key: { shopId: sid, key: "pwreset" } }, create: { shopId: sid, key: "pwreset", value }, update: { value } });
+  try {
+    await botForShop(sid).api.sendMessage(Number(owner.telegramId), `🔐 Admin parolni tiklash kodi: <b>${code}</b>\n\nKod 10 daqiqa amal qiladi. Agar bu so'rovni siz yubormagan bo'lsangiz — e'tiborsiz qoldiring.`, { parse_mode: "HTML" });
+  } catch (e) { res.status(500).json({ error: "Kod yuborib bo'lmadi: " + errMsg(e) }); return; }
+  res.json({ ok: true });
+}
+
+/** Kod va yangi parol bilan tiklash */
+export async function adminReset(req: Request, res: Response) {
+  const sid = currentShopId();
+  const b = (req.body || {}) as { phone?: string; code?: string; newPassword?: string };
+  const storedPhone = await shopOwnerPhone(sid);
+  const given = normalizePhone(String(b.phone || ""));
+  if (!storedPhone || given !== storedPhone) { res.status(400).json({ error: "Telefon raqami noto'g'ri" }); return; }
+  const row = await prisma.setting.findUnique({ where: { shopId_key: { shopId: sid, key: "pwreset" } } });
+  const v = row?.value as { codeHash?: string; expiresAt?: number; attempts?: number } | null;
+  if (!v?.codeHash || !v.expiresAt || Date.now() > v.expiresAt) { res.status(400).json({ error: "Kod muddati tugagan. Qaytadan so'rang." }); return; }
+  if ((v.attempts || 0) >= 5) { res.status(400).json({ error: "Juda ko'p urinish. Qaytadan kod so'rang." }); return; }
+  if (!b.code || !bcrypt.compareSync(String(b.code), v.codeHash)) {
+    await prisma.setting.update({ where: { shopId_key: { shopId: sid, key: "pwreset" } }, data: { value: { ...v, attempts: (v.attempts || 0) + 1 } } });
+    res.status(400).json({ error: "Kod noto'g'ri" }); return;
+  }
+  const np = String(b.newPassword || "");
+  if (np.length < ADMIN_PASSWORD_MIN) { res.status(400).json({ error: `Parol kamida ${ADMIN_PASSWORD_MIN} ta belgi bo'lishi kerak` }); return; }
+  await setAdminPassword(np);
+  await prisma.setting.delete({ where: { shopId_key: { shopId: sid, key: "pwreset" } } }).catch(() => {});
   res.json({ ok: true });
 }
 
