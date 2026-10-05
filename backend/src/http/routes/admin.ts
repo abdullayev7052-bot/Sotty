@@ -27,6 +27,13 @@ import { listStores } from "../../erp/stores.ts";
 import { buildSearchKey } from "../../utils/search.ts";
 import { recordMovement, recordPurchase, warehouseSummary } from "../../erp/warehouse.ts";
 import { cashBalance, recordCash, acceptPayment, adjustBalance, financeReport } from "../../erp/cashbox.ts";
+import { enforceLimit, shopUsage, type LimitKey } from "../../erp/limits.ts";
+
+/** Tarif limitini tekshirish — oshsa 403 qaytaradi (true = davom etma) */
+async function overLimit(res: Response, key: LimitKey): Promise<boolean> {
+  try { await enforceLimit(key); return false; }
+  catch (e) { res.status(403).json({ error: errMsg(e) }); return true; }
+}
 
 export const adminRouter = Router();
 
@@ -36,6 +43,7 @@ adminRouter.post("/login", adminLogin);
 adminRouter.post("/logout", adminLogout);
 adminRouter.use(adminAuth);
 adminRouter.get("/me", (_req, res) => { res.json({ ok: true }); });
+adminRouter.get("/limits", async (_req, res) => { res.json(await shopUsage()); });
 
 // ---------- Sozlamalar ----------
 adminRouter.get("/schema", (_req, res) => { res.json(settingsSchema); });
@@ -109,6 +117,7 @@ async function categoryName(code: string | null | undefined): Promise<string | n
 }
 
 adminRouter.post("/catalog/products/create", async (req, res) => {
+  if (await overLimit(res, "products")) return;
   const b = productBody.parse(req.body);
   const images = (b.images || (b.image ? [b.image] : [])).filter(Boolean) as string[];
   const catName = await categoryName(b.categoryCode);
@@ -169,6 +178,7 @@ adminRouter.delete("/catalog/products/:id", async (req, res) => {
 // ---------- Kategoriya CRUD (ichki ERP) ----------
 const categoryBody = z.object({ name: z.string().trim().min(1).max(120), parentCode: z.string().max(60).nullable().optional(), image: z.string().max(400).nullable().optional() });
 adminRouter.post("/catalog/categories/create", async (req, res) => {
+  if (await overLimit(res, "categories")) return;
   const b = categoryBody.parse(req.body);
   const max = (await prisma.category.aggregate({ _max: { sortOrder: true } }))._max.sortOrder || 0;
   const c = await prisma.category.create({ data: { bitoId: newCode("c_"), name: b.name, parentId: b.parentCode || null, image: b.image || null, sortOrder: max + 1 } });
@@ -326,6 +336,7 @@ const promoBody = z.object({
 });
 adminRouter.get("/promotions", async (_req, res) => { res.json(await prisma.promotion.findMany({ orderBy: [{ sortOrder: "asc" }, { id: "asc" }] })); });
 adminRouter.post("/promotions", async (req, res) => {
+  if (await overLimit(res, "promotions")) return;
   const b = promoBody.parse(req.body);
   const max = (await prisma.promotion.aggregate({ _max: { sortOrder: true } }))._max.sortOrder || 0;
   const p = await prisma.promotion.create({ data: {
@@ -433,6 +444,7 @@ adminRouter.get("/stories", async (_req, res) => {
 });
 const storySchema = z.object({ title: z.string().trim().min(1).max(60), cover: z.string().min(1), active: z.boolean().optional(), expiresAt: z.string().nullable().optional() });
 adminRouter.post("/stories", async (req, res) => {
+  if (await overLimit(res, "stories")) return;
   const b = storySchema.parse(req.body);
   if ((await prisma.story.count()) >= MEDIA_LIMITS.stories) { res.status(400).json({ error: `Storislar limiti: ko'pi bilan ${MEDIA_LIMITS.stories} ta. Eskisini o'chiring.` }); return; }
   const max = (await prisma.story.aggregate({ _max: { sortOrder: true } }))._max.sortOrder || 0;
@@ -488,6 +500,7 @@ adminRouter.post("/stories/reorder", async (req, res) => {
 adminRouter.get("/banners", async (_req, res) => { res.json(await prisma.banner.findMany({ orderBy: { sortOrder: "asc" } })); });
 const bannerSchema = z.object({ image: z.string().min(1), link: z.string().max(300).nullable().optional(), active: z.boolean().optional(), productIds: z.array(z.number()).max(200).optional() });
 adminRouter.post("/banners", async (req, res) => {
+  if (await overLimit(res, "banners")) return;
   const b = bannerSchema.parse(req.body);
   if ((await prisma.banner.count()) >= MEDIA_LIMITS.banners) { res.status(400).json({ error: `Bannerlar limiti: ko'pi bilan ${MEDIA_LIMITS.banners} ta. Eskisini o'chiring.` }); return; }
   const max = (await prisma.banner.aggregate({ _max: { sortOrder: true } }))._max.sortOrder || 0;
@@ -728,6 +741,9 @@ const staffBody = z.object({
 
 adminRouter.post("/staff", async (req, res) => {
   const b = staffBody.parse(req.body);
+  // yangi xodim qo'shilayotgan bo'lsa limitni tekshiramiz
+  const exists = await prisma.staff.findFirst({ where: { telegramId: b.telegramId }, select: { id: true } });
+  if (!exists && await overLimit(res, "staff")) return;
   const row = await prisma.staff.upsert({
     where: { shopId_telegramId: { shopId: currentShopId(), telegramId: b.telegramId } },
     create: { telegramId: b.telegramId, name: b.name || null, username: b.username || null, role: b.role || "staff", shareAdmin: b.shareAdmin ?? false },

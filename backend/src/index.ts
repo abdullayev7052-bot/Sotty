@@ -7,6 +7,7 @@ import { pruneStalePayments } from "./payments/payme.ts";
 import { listen, migrateDiskUploads } from "./http/server.ts";
 import { startBot } from "./bot/index.ts";
 import { startExtraShopBots } from "./bot/manager.ts";
+import { expireShops } from "./erp/limits.ts";
 import { getPublicUrl, startPublicUrlWatcher } from "./utils/publicUrl.ts";
 import { startTunnelAutostart } from "./utils/tunnel.ts";
 import { pruneEvents } from "./analytics/track.ts";
@@ -33,6 +34,9 @@ async function main() {
   // To'lov: 12 soatdan oshgan tugallanmagan tranzaksiyalarni bekor qilish
   void pruneStalePayments();
   setInterval(() => { void pruneStalePayments(); }, 30 * 60 * 1000);
+  // Tarif muddati tugagan do'konlarni to'xtatish (startda va kuniga)
+  void expireShops();
+  setInterval(() => { void expireShops(); }, 6 * 3600 * 1000);
 
   log.info(`✅ Tayyor. Admin: http://localhost:${env.PORT}/admin/`);
   if (!getPublicUrl()) log.info("Ommaviy manzil hali yo'q — ngrok/cloudflared avtomatik ishga tushiriladi yoki alohida oynada: ngrok http " + env.PORT);

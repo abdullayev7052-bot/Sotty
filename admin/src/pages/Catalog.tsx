@@ -30,6 +30,7 @@ export function CatalogPage() {
   const toast = useToast((s) => s.show);
   const q = useQuery({ queryKey: ["catalog"], queryFn: () => api.get<Data>("/catalog"), staleTime: 30000 });
   const options = useQuery({ queryKey: ["erp-options"], queryFn: () => api.get<Options>("/erp/options"), staleTime: 60000 });
+  const limits = useQuery({ queryKey: ["limits"], queryFn: () => api.get<{ tariffName: string; unlimited: boolean; limits: Record<string, number>; used: Record<string, number> }>("/limits"), staleTime: 60000 });
   const [tab, setTab] = useState<"products" | "categories" | "blocks">("products");
   const [search, setSearch] = useState("");
   const [cat, setCat] = useState("");
@@ -143,6 +144,12 @@ export function CatalogPage() {
             ? <button className="btn btn-primary" onClick={() => setEditP({})}><Plus size={16} /> Mahsulot qo'shish</button>
             : undefined
       } />
+      {limits.data && !limits.data.unlimited && (
+        <div className="text-xs text-slate-500 mb-3">
+          Tarif: <b>{limits.data.tariffName}</b> · Mahsulotlar: <b className={limits.data.used.products >= limits.data.limits.products ? "text-rose-600" : ""}>{limits.data.used.products}/{limits.data.limits.products}</b>
+          {limits.data.used.products >= limits.data.limits.products && <span className="text-rose-600"> — chegara to'ldi, tarifni yangilang</span>}
+        </div>
+      )}
       <div className="flex gap-2 mb-4">
         <button className={`btn ${tab === "products" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("products")}>Mahsulotlar ({products.length})</button>
         <button className={`btn ${tab === "categories" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("categories")}>Kategoriyalar ({cats.length})</button>

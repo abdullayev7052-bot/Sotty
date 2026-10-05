@@ -3,10 +3,12 @@ import { z } from "zod";
 import { prisma } from "../../db.ts";
 import { superAuth, superLogin, superLogout } from "../auth.ts";
 import { startShopBot, stopShopBot } from "../../bot/manager.ts";
+import { clearTariffCache } from "../../erp/limits.ts";
 import { errMsg, log } from "../../logger.ts";
 
 /** Do'kon holatiga qarab botini ishga tushirish yoki to'xtatish */
 async function syncShopBot(shopId: number) {
+  clearTariffCache(shopId);
   const s = await prisma.shop.findUnique({ where: { id: shopId } });
   if (s && s.active && !s.suspended && s.botToken) await startShopBot(s.id, s.slug, s.botToken);
   else await stopShopBot(shopId);

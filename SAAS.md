@@ -42,9 +42,20 @@ Arxitektura: **bitta baza, qatorli ko'p-ijara (row-level multitenancy)** + bitta
 - **Ochiq ro'yxatdan o'tish:** `/register` sahifasi — egasi nomi, bot tokeni, parol, tarifni
   kiritadi → do'kon yaratiladi, admin paroli o'rnatiladi, bot darhol ishga tushadi.
 
-### ⏳ 6.4 — Tariflar va cheklovlar (keyingi)
-- Tarif bo'yicha limitlar (mahsulotlar soni, buyurtmalar, bannerlar...).
-- To'lov muddati tugaganda do'konni avtomatik to'xtatish/ogohlantirish.
+### ✅ 6.4 — Tariflar va cheklovlar — BAJARILDI
+- `erp/limits.ts`: tarif bo'yicha limitlar — **Bepul** (30 mahsulot, 15 kategoriya, 2 banner,
+  2 aksiya, 2 xodim, 3 storis), **Basic** (500/100/8/15/10/15), **Pro** (deyarli cheksiz).
+  1-do'kon (platforma egasi) limitsiz.
+- Yaratishda tekshirish (mahsulot/kategoriya/banner/aksiya/xodim/storis) — chegara oshsa 403.
+- `/admin/limits` — joriy tarif va foydalanish; admin panelda ko'rsatiladi.
+- **To'lov muddati:** `paidUntil` o'tgan (free'dan boshqa) do'konlar har 6 soatda avtomatik
+  to'xtatiladi (bot o'chadi, Mini App `shop_inactive` bilan bloklanadi). Super-admin muddatni
+  uzaytirsa — qayta faollashadi.
+
+### ⏳ Kelajak (ixtiyoriy)
+- Super-admin "impersonate" uchun admin parolsiz kirish (hozir do'kon paroli kerak).
+- Onlayn to'lov orqali tarifni avtomatik uzaytirish.
+- Juda ko'p do'kon uchun bot webhook rejimi (hozir polling).
 
 ## Qanday ishlatiladi
 

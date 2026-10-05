@@ -7,6 +7,7 @@ import { env } from "../env.ts";
 import { prisma, currentShopId, runWithShop, DEFAULT_SHOP_ID } from "../db.ts";
 import { normalizeLang, getSettings } from "../settings/store.ts";
 import { tokenForShop, shopIdBySlug } from "../bot/manager.ts";
+import { isShopInactive } from "../erp/limits.ts";
 import { touchUser } from "../analytics/track.ts";
 
 export interface TgInitUser { id: number; first_name?: string; last_name?: string; username?: string; language_code?: string }
@@ -56,6 +57,10 @@ export interface AppRequest extends Request {
 /** Mini App uchun autentifikatsiya: Authorization: tma <initData> */
 export async function appAuth(req: Request, res: Response, next: NextFunction) {
   const shopId = await resolveShopId(req);
+  if (shopId !== DEFAULT_SHOP_ID) {
+    const shop = await prisma.shop.findUnique({ where: { id: shopId }, select: { active: true, suspended: true, paidUntil: true, tariff: true } });
+    if (!shop || isShopInactive(shop)) { res.status(403).json({ error: "Do'kon vaqtincha ishlamayapti", code: "shop_inactive" }); return; }
+  }
   const header = req.header("authorization") || "";
   let tg: TgInitUser | null = null;
   if (header.startsWith("tma ")) tg = verifyInitData(header.slice(4), tokenForShop(shopId));
