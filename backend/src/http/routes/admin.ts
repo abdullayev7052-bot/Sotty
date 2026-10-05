@@ -559,7 +559,7 @@ adminRouter.post("/catalog/products/discount", async (req, res) => {
 adminRouter.post("/catalog/products/reorder", async (req, res) => {
   const ids = z.array(z.number()).parse((req.body as { ids?: number[] })?.ids);
   const orders = ids.map((_, i) => i + 1);
-  await prisma.$executeRaw`UPDATE "Product" AS p SET "sortOrder" = v.ord FROM unnest(${ids}::int[], ${orders}::int[]) AS v(id, ord) WHERE p.id = v.id`;
+  await prisma.$executeRaw`UPDATE "Product" AS p SET "sortOrder" = v.ord FROM unnest(${ids}::int[], ${orders}::int[]) AS v(id, ord) WHERE p.id = v.id AND p."shopId" = ${currentShopId()}`;
   invalidateProductCache();
   res.json({ ok: true });
 });
@@ -571,7 +571,7 @@ adminRouter.put("/catalog/categories/:id", async (req, res) => {
 adminRouter.post("/catalog/categories/reorder", async (req, res) => {
   const ids = z.array(z.number()).parse((req.body as { ids?: number[] })?.ids);
   const orders = ids.map((_, i) => i + 1);
-  await prisma.$executeRaw`UPDATE "Category" AS c SET "sortOrder" = v.ord FROM unnest(${ids}::int[], ${orders}::int[]) AS v(id, ord) WHERE c.id = v.id`;
+  await prisma.$executeRaw`UPDATE "Category" AS c SET "sortOrder" = v.ord FROM unnest(${ids}::int[], ${orders}::int[]) AS v(id, ord) WHERE c.id = v.id AND c."shopId" = ${currentShopId()}`;
   res.json({ ok: true });
 });
 

@@ -3,7 +3,7 @@
  * Barcha hisoblar bazada (Postgres) bajariladi; sanalar O'zbekiston vaqti bo'yicha guruhlanadi.
  */
 import { Prisma } from "@prisma/client";
-import { prisma } from "../db.ts";
+import { prisma, currentShopId } from "../db.ts";
 import { getSettings, lt } from "../settings/store.ts";
 
 export const TZ = "Asia/Tashkent";
@@ -68,11 +68,14 @@ export async function buildReport(f: ReportFilters) {
   const d7 = new Date(now.getTime() - 7 * 86400000), d14 = new Date(now.getTime() - 14 * 86400000), d30 = new Date(now.getTime() - 30 * 86400000);
   const earliest = d30 < from ? d30 : from;
 
+  // Ko'p-do'kon izolyatsiyasi: xom SQL Prisma kengaytmasini chetlab o'tadi, shuning uchun
+  // shopId'ni filtr parchalariga QO'LDA qo'shamiz (aks holda barcha do'kon statistikasi aralashadi).
+  const sid = currentShopId();
   // Filtr parchalari (e = AppEvent, u = User, o = Order)
-  const evF = Prisma.sql`e."userId" IS NOT NULL AND (${platform}::text IS NULL OR e.platform = ${platform}) AND (${lang}::text IS NULL OR u.language = ${lang})`;
+  const evF = Prisma.sql`e."userId" IS NOT NULL AND e."shopId" = ${sid} AND (${platform}::text IS NULL OR e.platform = ${platform}) AND (${lang}::text IS NULL OR u.language = ${lang})`;
   const evP = Prisma.sql`e."createdAt" >= ${from} AND e."createdAt" < ${to} AND ${evF}`;
-  const uF = Prisma.sql`(${lang}::text IS NULL OR u.language = ${lang})`;
-  const oF = Prisma.sql`(${storeId}::text IS NULL OR o."storeId" = ${storeId}) AND (${type}::text IS NULL OR o.type = ${type}) AND ${uF}`;
+  const uF = Prisma.sql`u."shopId" = ${sid} AND (${lang}::text IS NULL OR u.language = ${lang})`;
+  const oF = Prisma.sql`o."shopId" = ${sid} AND (${storeId}::text IS NULL OR o."storeId" = ${storeId}) AND (${type}::text IS NULL OR o.type = ${type}) AND ${uF}`;
   const oP = Prisma.sql`o."createdAt" >= ${from} AND o."createdAt" < ${to} AND ${oF}`;
   // Prisma DateTime = timestamp (tz'siz, UTC) → avval UTC deb belgilab, keyin mahalliy vaqtga o'tkazamiz
   const bucket = (col: Prisma.Sql) => Prisma.sql`to_char(date_trunc(${group}, (${col} AT TIME ZONE 'UTC') AT TIME ZONE ${TZ}), 'YYYY-MM-DD')`;
