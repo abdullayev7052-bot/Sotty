@@ -70,6 +70,8 @@ export function Cart() {
   const [lat, setLat] = useState<number | null>(user.lat);
   const [lng, setLng] = useState<number | null>(user.lng);
   const [comment, setComment] = useState("");
+  const [promoCode, setPromoCode] = useState("");
+  const [quote, setQuote] = useState<{ subtotal: number; discount: number; total: number; promo: { name: string } | null; nextPromo: { name: string; remaining: number } | null } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [orderNumber, setOrderNumber] = useState("");
@@ -103,13 +105,25 @@ export function Cart() {
   }, []);
 
   const subtotal = cart.total();
+  // Aksiya/chegirma hisobi (serverdan)
+  const cartSig = cart.items.map((x) => `${x.productId}:${x.qty}`).join(",");
+  useEffect(() => {
+    if (!cart.items.length) { setQuote(null); return; }
+    const id = setTimeout(() => {
+      api.post<typeof quote>("/quote", { items: cart.items.map((x) => ({ productId: x.productId, qty: x.qty })), promoCode: promoCode.trim() || undefined })
+        .then((q) => setQuote(q)).catch(() => setQuote(null));
+    }, 250);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cartSig, promoCode]);
+  const discount = quote && quote.subtotal === subtotal ? quote.discount : 0;
   const fee = useMemo(() => {
     if (type !== "delivery") return 0;
     const fee = v<number>("checkout", "deliveryFee", 0), free = v<number>("checkout", "freeDeliveryFrom", 0);
-    if (free > 0 && subtotal >= free) return 0;
+    if (free > 0 && subtotal - discount >= free) return 0;
     return fee;
-  }, [type, subtotal, v]);
-  const total = subtotal + fee;
+  }, [type, subtotal, discount, v]);
+  const total = subtotal - discount + fee;
   const delEnabled = v<boolean>("checkout", "deliveryEnabled", true), pickEnabled = v<boolean>("checkout", "pickupEnabled", true);
   const requireLocation = v<boolean>("checkout", "requireLocation", true);
   const mapLat = v<number>("checkout", "mapLat", 40.5286), mapLng = v<number>("checkout", "mapLng", 70.9425);
@@ -134,7 +148,7 @@ export function Cart() {
     try {
       const r = await api.post<{ ok: true; order: { id: number; number: string; total: number } }>("/orders", {
         items: cart.items.map((x) => ({ productId: x.productId, qty: x.qty, boxCount: x.boxCount || 0 })),
-        type, phone, name, address: type === "delivery" ? address : undefined, lat: type === "delivery" ? lat : null, lng: type === "delivery" ? lng : null, comment: comment || undefined,
+        type, phone, name, address: type === "delivery" ? address : undefined, lat: type === "delivery" ? lat : null, lng: type === "delivery" ? lng : null, comment: comment || undefined, promoCode: promoCode.trim() || undefined,
       });
       haptic.success();
       setOrderNumber(r.order.number);
@@ -203,7 +217,11 @@ export function Cart() {
                 </motion.div>
               ))}
             </AnimatePresence>
-            <Summary itemsLabel={t("checkout", "itemsLabel")} subtotal={f.price(subtotal)} count={cart.count()} />
+            <Summary itemsLabel={t("checkout", "itemsLabel")} subtotal={f.price(subtotal)} count={cart.count()}
+              discount={discount > 0 ? { label: quote?.promo?.name || "Chegirma", value: f.price(discount) } : undefined} />
+            {quote?.nextPromo && quote.nextPromo.remaining > 0 && (
+              <div className="rounded-xl bg-amber-50 text-amber-700 text-sm p-3">🎁 Yana <b>{f.price(quote.nextPromo.remaining)}</b>lik mahsulot qo'shing — <b>{quote.nextPromo.name}</b></div>
+            )}
           </motion.div>
         ) : (
           <motion.div key="checkout" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.2 }} className="wrap mt-3 space-y-4">
@@ -243,7 +261,14 @@ export function Cart() {
                 <Field label={t("checkout", "commentLabel")}><textarea className="input" rows={2} value={comment} onChange={(e) => setComment(e.target.value)} /></Field>
               )}
             </div>
+            <div className="card p-4">
+              <div className="text-xs font-semibold text-slate-500 mb-1.5">Promo-kod</div>
+              <input className="input" value={promoCode} onChange={(e) => setPromoCode(e.target.value)} placeholder="Kodingiz bo'lsa kiriting" />
+              {promoCode.trim() && quote && quote.subtotal === subtotal && !quote.promo && discount === 0 && <div className="text-xs text-rose-500 mt-1.5">Kod topilmadi yoki shartga mos emas</div>}
+              {quote?.promo && discount > 0 && <div className="text-xs text-emerald-600 mt-1.5">✓ {quote.promo.name}</div>}
+            </div>
             <Summary itemsLabel={t("checkout", "itemsLabel")} subtotal={f.price(subtotal)} count={cart.count()}
+              discount={discount > 0 ? { label: quote?.promo?.name || "Chegirma", value: f.price(discount) } : undefined}
               fee={type === "delivery" ? { label: t("checkout", "deliveryFeeLabel"), value: fee > 0 ? f.price(fee) : t("checkout", "freeLabel") } : undefined}
               total={{ label: t("checkout", "totalLabel"), value: f.price(total) }} />
             {error && <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} className="rounded-xl bg-red-50 text-red-600 text-sm p-3">{error}</motion.div>}
@@ -251,7 +276,7 @@ export function Cart() {
         )}
 
       <div className="fixed left-0 right-0 z-[500] p-4 bg-white/95 backdrop-blur border-t border-slate-100" style={{ bottom: "calc(var(--nav-h) + var(--safe-bottom))" }}>
-        <div className="flex items-center justify-between mb-2 text-sm"><span className="text-slate-500">{t("checkout", "totalLabel")}</span><span className="text-lg font-bold">{f.price(step === "cart" ? subtotal : total)}</span></div>
+        <div className="flex items-center justify-between mb-2 text-sm"><span className="text-slate-500">{t("checkout", "totalLabel")}</span><span className="text-lg font-bold">{f.price(step === "cart" ? subtotal - discount : total)}</span></div>
         {shareAdmin ? (
           <div className="space-y-2">
             <motion.button whileTap={{ scale: 0.98 }} disabled={sharing || !cart.items.length} onClick={() => { void shareCart(false); }}
@@ -282,10 +307,11 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   return <label className="block"><div className="text-xs font-semibold text-slate-500 mb-1.5">{label}</div>{children}</label>;
 }
 
-function Summary({ itemsLabel, subtotal, count, fee, total }: { itemsLabel: string; subtotal: string; count: number; fee?: { label: string; value: string }; total?: { label: string; value: string } }) {
+function Summary({ itemsLabel, subtotal, count, fee, discount, total }: { itemsLabel: string; subtotal: string; count: number; fee?: { label: string; value: string }; discount?: { label: string; value: string }; total?: { label: string; value: string } }) {
   return (
     <div className="card p-4 text-sm space-y-2">
       <div className="flex justify-between"><span className="text-slate-500">{itemsLabel} ({fq(count)})</span><span className="font-medium">{subtotal}</span></div>
+      {discount && <div className="flex justify-between text-emerald-600"><span>{discount.label}</span><span className="font-medium">−{discount.value}</span></div>}
       {fee && <div className="flex justify-between"><span className="text-slate-500">{fee.label}</span><span className="font-medium">{fee.value}</span></div>}
       {total && <div className="flex justify-between border-t border-slate-100 pt-2 text-base"><span className="font-semibold">{total.label}</span><span className="font-bold">{total.value}</span></div>}
     </div>

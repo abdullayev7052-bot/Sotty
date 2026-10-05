@@ -311,6 +311,43 @@ adminRouter.post("/customers/:id/adjust", async (req, res) => {
   try { const r = await adjustBalance({ userId: Number(req.params.id), delta: b.delta, note: b.note, createdBy: "admin" }); res.json({ ok: true, balance: r.balance }); }
   catch (e) { res.status(400).json({ error: errMsg(e) }); }
 });
+
+// ---------- Aksiyalar / chegirmalar ----------
+const promoBody = z.object({
+  name: z.string().trim().min(1).max(120),
+  type: z.enum(["percent", "fixed"]).optional(),
+  value: z.number().min(0).optional(),
+  minTotal: z.number().min(0).optional(),
+  promoCode: z.string().trim().max(40).nullable().optional(),
+  active: z.boolean().optional(),
+  startsAt: z.string().nullable().optional(),
+  endsAt: z.string().nullable().optional(),
+});
+adminRouter.get("/promotions", async (_req, res) => { res.json(await prisma.promotion.findMany({ orderBy: [{ sortOrder: "asc" }, { id: "asc" }] })); });
+adminRouter.post("/promotions", async (req, res) => {
+  const b = promoBody.parse(req.body);
+  const max = (await prisma.promotion.aggregate({ _max: { sortOrder: true } }))._max.sortOrder || 0;
+  const p = await prisma.promotion.create({ data: {
+    name: b.name, type: b.type || "percent", value: b.value || 0, minTotal: b.minTotal || 0,
+    promoCode: b.promoCode?.trim() || null, active: b.active ?? true,
+    startsAt: b.startsAt ? new Date(b.startsAt) : null, endsAt: b.endsAt ? new Date(b.endsAt) : null, sortOrder: max + 1,
+  } });
+  res.json(p);
+});
+adminRouter.put("/promotions/:id", async (req, res) => {
+  const b = promoBody.partial().parse(req.body);
+  const data: Record<string, unknown> = {};
+  if (b.name !== undefined) data.name = b.name;
+  if (b.type !== undefined) data.type = b.type;
+  if (b.value !== undefined) data.value = b.value;
+  if (b.minTotal !== undefined) data.minTotal = b.minTotal;
+  if (b.promoCode !== undefined) data.promoCode = b.promoCode?.trim() || null;
+  if (b.active !== undefined) data.active = b.active;
+  if (b.startsAt !== undefined) data.startsAt = b.startsAt ? new Date(b.startsAt) : null;
+  if (b.endsAt !== undefined) data.endsAt = b.endsAt ? new Date(b.endsAt) : null;
+  res.json(await prisma.promotion.update({ where: { id: Number(req.params.id) }, data }));
+});
+adminRouter.delete("/promotions/:id", async (req, res) => { await prisma.promotion.delete({ where: { id: Number(req.params.id) } }); res.json({ ok: true }); });
 adminRouter.post("/public-url", async (req, res) => {
   const url = String((req.body as { url?: string })?.url || "").trim();
   if (url && !/^https:\/\//.test(url)) { res.status(400).json({ error: "Manzil https:// bilan boshlanishi kerak" }); return; }

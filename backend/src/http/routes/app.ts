@@ -21,6 +21,7 @@ import { EVENT_NAMES, isEventName, normPlatform, track } from "../../analytics/t
 import { inCartCounts, weeklySales } from "../../erp/sales.ts";
 import { detailsFor, faceTextFor, filterableFields, filterPartEnabled, valueOf } from "../../erp/productFields.ts";
 import { createShare, isShareAdmin, readShare } from "../../erp/share.ts";
+import { quote as promoQuote } from "../../erp/promotions.ts";
 import { paymeLink, paymeReady } from "../../payments/checkout.ts";
 
 export const appRouter = Router();
@@ -460,6 +461,7 @@ const orderSchema = z.object({
   lat: z.number().nullable().optional(),
   lng: z.number().nullable().optional(),
   comment: z.string().trim().max(500).optional(),
+  promoCode: z.string().trim().max(40).optional(),
 });
 appRouter.post("/orders", async (req, res) => {
   const user = u(req);
@@ -479,6 +481,28 @@ appRouter.post("/orders", async (req, res) => {
     log.error("createOrder", e);
     res.status(500).json({ error: errMsg(e), code: "server" });
   }
+});
+
+// ---------- Aksiya/chegirma hisobi (savat) ----------
+const quoteSchema = z.object({
+  items: z.array(z.object({ productId: z.number().int(), qty: z.number().positive() })).max(200),
+  promoCode: z.string().trim().max(40).optional(),
+});
+appRouter.post("/quote", async (req, res) => {
+  const user = u(req);
+  const parsed = quoteSchema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "bad quote" }); return; }
+  const ids = parsed.data.items.map((i) => i.productId);
+  const products = await prisma.product.findMany({ where: { id: { in: ids }, isDeleted: false, hidden: false } });
+  let subtotal = 0;
+  for (const it of parsed.data.items) {
+    const p = products.find((x) => x.id === it.productId);
+    if (!p) continue;
+    subtotal += priceFor(p, user).price * Number(it.qty);
+  }
+  subtotal = Math.round(subtotal);
+  const q = await promoQuote(subtotal, { code: parsed.data.promoCode });
+  res.json(q);
 });
 
 // ---------- Filtrlar (qo'shimcha maydonlar va narx oralig'i) ----------

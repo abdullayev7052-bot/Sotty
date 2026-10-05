@@ -6,6 +6,7 @@ import { events, type StageActor } from "../events.ts";
 import { activity, errMsg, log } from "../logger.ts";
 import { money, normalizePhone, qty } from "../utils/format.ts";
 import { priceFor, userStore } from "./stores.ts";
+import { quote } from "./promotions.ts";
 
 export type Stage = "new" | "accepted" | "ready" | "delivering" | "done" | "canceled" | "other";
 export const TERMINAL: Stage[] = ["done", "canceled"];
@@ -80,6 +81,7 @@ export interface CreateOrderInput {
   lat?: number | null;
   lng?: number | null;
   comment?: string;
+  promoCode?: string;
 }
 
 export class OrderValidationError extends Error {
@@ -117,6 +119,10 @@ export async function createOrder(user: User, input: CreateOrderInput, lang: Lan
   if (c.minOrderTotal > 0 && total < c.minOrderTotal) {
     throw new OrderValidationError(fill(lt(c.errorMin as never, lang), { min: money(c.minOrderTotal, lang) }), "min");
   }
+  // Aksiya/chegirma (savat darajasida)
+  const promo = await quote(total, { code: input.promoCode });
+  const discount = promo.discount;
+  const netTotal = total - discount;
   const phone = normalizePhone(input.phone || user.phone || "");
   if (!phone) throw new OrderValidationError("Telefon raqam kiritilmagan", "phone");
   const isDelivery = input.type === "delivery";
@@ -134,7 +140,7 @@ export async function createOrder(user: User, input: CreateOrderInput, lang: Lan
     data: {
       number: null, userId: user.id, type: input.type, storeId: store.id,
       stateKey: "new", stateName: null,
-      items: snapshot as unknown as object, total, itemsCount: count, phone, customerName: updatedUser.name || input.name || null,
+      items: snapshot as unknown as object, total: netTotal, discount, promoTitle: promo.promo?.name || null, itemsCount: count, phone, customerName: updatedUser.name || input.name || null,
       address: isDelivery ? input.address || null : null, lat: isDelivery ? input.lat || null : null, lng: isDelivery ? input.lng || null : null,
       comment: input.comment || null, history: history as unknown as object,
     },

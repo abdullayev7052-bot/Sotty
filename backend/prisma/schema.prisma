@@ -140,6 +140,24 @@ model StockMovement {
   @@index([createdAt])
 }
 
+/// Aksiya / chegirma qoidasi (savat darajasida qo'llanadi)
+model Promotion {
+  id         Int       @id @default(autoincrement())
+  name       String
+  /// percent = foizli, fixed = qat'iy summa
+  type       String    @default("percent")
+  value      Float     @default(0)
+  /// Qo'llanish uchun minimal savat summasi (0 = doimo)
+  minTotal   Float     @default(0)
+  /// Promo-kod (bo'sh = avtomatik qo'llanadi)
+  promoCode  String?
+  active     Boolean   @default(true)
+  startsAt   DateTime?
+  endsAt     DateTime?
+  sortOrder  Int       @default(0)
+  createdAt  DateTime  @default(now())
+}
+
 /// Kassa harakati (pul kirim/chiqim) — kassa qoldig'ining to'liq jurnali
 model CashTransaction {
   id          Int      @id @default(autoincrement())
@@ -195,6 +213,10 @@ model Order {
   stateName        String?
   items            Json
   total            Float    @default(0)
+  /// Aksiya/chegirma summasi (buyurtma darajasida)
+  discount         Float    @default(0)
+  /// Qo'llanilgan aksiya nomi
+  promoTitle       String?
   itemsCount       Float    @default(0)
   phone            String?
   customerName     String?

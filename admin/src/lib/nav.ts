@@ -20,6 +20,7 @@ export const NAV: NavSection[] = [
     { key: "stories", label: "stories", icon: "images", to: "/stories", keywords: ["slayd", "video", "hikoya", "сторис"] },
     { key: "banners", label: "banners", icon: "gallery-horizontal", to: "/banners", keywords: ["reklama", "aylanma", "баннер"] },
     { key: "broadcast", label: "broadcast", icon: "send", to: "/broadcast", keywords: ["xabar tarqatish", "rassilka", "рассылка", "aksiya", "yangilik", "broadcast"] },
+    { key: "promotions", label: "promotions", icon: "ticket", to: "/promotions", keywords: ["aksiya", "chegirma", "promo", "promo-kod", "kupon", "скидка", "акция", "promotion", "discount", "coupon"] },
   ] },
   { key: "control", title: "control", items: [
     { key: "catalog", label: "catalog", icon: "package", to: "/catalog", keywords: ["mahsulot", "kategoriya", "yashirish", "tavsiya", "chegirma", "tartib", "товары", "products", "nazorat"] },
