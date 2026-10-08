@@ -279,6 +279,31 @@ export function CatalogPage() {
 
 function newFieldId(): string { return "f" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 
+interface Dim { name: string; values: string[] }
+interface Combo { label: string; attrs: { name: string; value: string }[] }
+interface VariantItem { label: string; attrs: { name: string; value: string }[]; price?: number; stock?: number; image?: string | null }
+
+/** Variant o'lchamlaridan barcha kombinatsiyalarni hosil qilish (dekart ko'paytma) */
+function cartesian(dims: Dim[]): Combo[] {
+  const ds = dims.filter((d) => d.name.trim() && d.values.length);
+  if (!ds.length) return [];
+  let acc: { name: string; value: string }[][] = [[]];
+  for (const d of ds) acc = acc.flatMap((c) => d.values.map((v) => [...c, { name: d.name.trim(), value: v }]));
+  return acc.map((attrs) => ({ attrs, label: attrs.map((a) => a.value).join(" / ") }));
+}
+
+/** Mavjud variantlardan o'lchamlarni tiklash */
+function dimsFromVariants(list: VariantItem[]): Dim[] {
+  const names: string[] = [];
+  const map = new Map<string, string[]>();
+  for (const v of list) for (const a of v.attrs) {
+    if (!map.has(a.name)) { map.set(a.name, []); names.push(a.name); }
+    const arr = map.get(a.name)!;
+    if (!arr.includes(a.value)) arr.push(a.value);
+  }
+  return names.map((n) => ({ name: n, values: map.get(n)! }));
+}
+
 /** Mahsulot qo'shish/tahrirlash */
 function ProductEditor({ initial, cats, onClose, onSaved }: { initial: Partial<P>; cats: C[]; onClose: () => void; onSaved: () => void }) {
   const toast = useToast((s) => s.show);
@@ -300,6 +325,32 @@ function ProductEditor({ initial, cats, onClose, onSaved }: { initial: Partial<P
   const [addingCat, setAddingCat] = useState(false);
   const [newCat, setNewCat] = useState("");
   const set = (k: keyof typeof f, v: unknown) => setF((d) => ({ ...d, [k]: v }));
+
+  // ----- Variantlar -----
+  const [hasVariants, setHasVariants] = useState(false);
+  const [dims, setDims] = useState<Dim[]>([]);
+  const [diffPrice, setDiffPrice] = useState(false);
+  const [vData, setVData] = useState<Record<string, { price: string; stock: string; image: string }>>({});
+  const combos = useMemo(() => cartesian(dims), [dims]);
+  useEffect(() => {
+    if (!initial.id) return;
+    api.get<VariantItem[]>(`/catalog/products/${initial.id}/variants`).then((list) => {
+      if (!list.length) return;
+      setHasVariants(true);
+      setDims(dimsFromVariants(list));
+      setDiffPrice(new Set(list.map((v) => v.price)).size > 1);
+      const d: Record<string, { price: string; stock: string; image: string }> = {};
+      for (const v of list) d[v.label] = { price: String(v.price ?? ""), stock: String(v.stock ?? ""), image: v.image || "" };
+      setVData(d);
+    }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const addDim = () => setDims((d) => [...d, { name: "", values: [] }]);
+  const setDimName = (i: number, name: string) => setDims((d) => d.map((x, j) => j === i ? { ...x, name } : x));
+  const removeDim = (i: number) => setDims((d) => d.filter((_, j) => j !== i));
+  const addDimValue = (i: number, val: string) => { const v = val.trim(); if (!v) return; setDims((d) => d.map((x, j) => j === i ? (x.values.includes(v) ? x : { ...x, values: [...x.values, v] }) : x)); };
+  const removeDimValue = (i: number, vi: number) => setDims((d) => d.map((x, j) => j === i ? { ...x, values: x.values.filter((_, k) => k !== vi) } : x));
+  const setVField = (label: string, k: "price" | "stock" | "image", val: string) => setVData((d) => { const cur = d[label] || { price: "", stock: "", image: "" }; return { ...d, [label]: { ...cur, [k]: val } }; });
 
   const pickImages = async (files: FileList) => {
     setUploading(true);
@@ -335,12 +386,20 @@ function ProductEditor({ initial, cats, onClose, onSaved }: { initial: Partial<P
     const oldP = f.oldPrice.trim() ? Number(f.oldPrice) : null;
     if (oldP != null && !(oldP > Number(f.price))) { toast("Eski narx yangi narxdan katta bo'lishi kerak", "err"); return; }
     setSaving(true);
+    const variantsOn = hasVariants && combos.length > 0;
     const body = {
       name: f.name.trim(), price: Number(f.price) || 0, oldPrice: oldP,
       categoryCode: f.categoryCode || null, note: f.note || null,
       image: f.images[0] || null, images: f.images,
       trackStock: f.trackStock, stock: f.trackStock ? (Number(f.stock) || 0) : 0,
       customFields: f.customFields.filter((c) => c.name.trim()).map((c) => ({ id: c.id, name: c.name.trim(), value: c.value })),
+      hasVariants: variantsOn,
+      variants: variantsOn ? combos.map((c): VariantItem => ({
+        label: c.label, attrs: c.attrs,
+        price: diffPrice ? (Number(vData[c.label]?.price) || Number(f.price) || 0) : undefined,
+        stock: Number(vData[c.label]?.stock) || 0,
+        image: vData[c.label]?.image || null,
+      })) : [],
     };
     try {
       if (initial.id) await api.put(`/catalog/products/${initial.id}/full`, body);
@@ -422,6 +481,42 @@ function ProductEditor({ initial, cats, onClose, onSaved }: { initial: Partial<P
             <div className="mt-2"><input type="number" className="input max-w-[160px]" placeholder="Qoldiq miqdori" value={f.stock} onChange={(e) => set("stock", e.target.value)} /></div>
           )}
           <div className="help mt-1">Yoqilsa: buyurtmalarda qoldiq ayriladi, tugasa Mini App'da «sotuvda yo'q» bo'ladi. O'chiq bo'lsa — cheksiz.</div>
+        </div>
+
+        <div className="rounded-xl bg-slate-50 p-3">
+          <label className="flex items-center gap-2 text-sm font-medium"><Toggle value={hasVariants} onChange={setHasVariants} /> Variant mahsulot</label>
+          {hasVariants && (
+            <div className="mt-3 space-y-3">
+              {dims.map((d, i) => (
+                <div key={i} className="rounded-lg border border-slate-200 bg-white p-2.5">
+                  <div className="flex gap-2 items-center">
+                    <input className="input flex-1" placeholder="Variant nomi (masalan: Rangi, O'lchami)" value={d.name} onChange={(e) => setDimName(i, e.target.value)} />
+                    <button className="w-8 h-8 rounded-lg text-rose-500 hover:bg-rose-50 flex items-center justify-center shrink-0" onClick={() => removeDim(i)}><Trash2 size={15} /></button>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 mt-2 items-center">
+                    {d.values.map((v, vi) => (
+                      <span key={vi} className="inline-flex items-center gap-1 text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded-lg">{v}<button className="text-slate-400 hover:text-rose-500" onClick={() => removeDimValue(i, vi)}><X size={12} /></button></span>
+                    ))}
+                    <input className="input !w-32 !py-1 text-sm" placeholder="+ qiymat, Enter" onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); const el = e.target as HTMLInputElement; addDimValue(i, el.value); el.value = ""; } }} />
+                  </div>
+                </div>
+              ))}
+              <button className="btn btn-ghost !py-1.5 text-sm" onClick={addDim}><Plus size={14} /> Variant qo'shish</button>
+              <label className="flex items-center gap-2 text-sm font-medium"><Toggle value={diffPrice} onChange={setDiffPrice} /> Har xil narx (har variant alohida)</label>
+              {combos.length > 0 && (
+                <div className="rounded-lg border border-slate-200 bg-white divide-y divide-slate-100">
+                  {combos.map((c) => (
+                    <div key={c.label} className="flex items-center gap-2 p-2 text-sm">
+                      <span className="flex-1 font-medium">{c.label}</span>
+                      {diffPrice && <input type="number" className="input !w-28 !py-1" placeholder="narx" value={vData[c.label]?.price ?? ""} onChange={(e) => setVField(c.label, "price", e.target.value)} />}
+                      {f.trackStock && <input type="number" className="input !w-20 !py-1" placeholder="qoldiq" value={vData[c.label]?.stock ?? ""} onChange={(e) => setVField(c.label, "stock", e.target.value)} />}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="help">Har kombinatsiya alohida variant bo'ladi. Mini App'da mijoz mahsulot ichida variantni tanlab savatga qo'shadi.</div>
+            </div>
+          )}
         </div>
 
         <div className="flex justify-end gap-2 pt-1"><button className="btn btn-ghost" onClick={onClose}>Bekor</button><button className="btn btn-primary" disabled={saving} onClick={() => { void save(); }}>{saving ? "Saqlanmoqda…" : "Saqlash"}</button></div>

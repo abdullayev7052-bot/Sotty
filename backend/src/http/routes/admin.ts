@@ -111,7 +111,46 @@ const productBody = z.object({
   customFields: z.array(z.object({ id: z.string().max(60), name: z.string().max(120), value: z.string().max(500) })).max(40).optional(),
   hidden: z.boolean().optional(),
   featured: z.boolean().optional(),
+  hasVariants: z.boolean().optional(),
+  variants: z.array(z.object({
+    label: z.string().max(160),
+    attrs: z.array(z.object({ name: z.string().max(60), value: z.string().max(80) })).max(6),
+    price: z.number().min(0).optional(),
+    stock: z.number().min(0).optional(),
+    image: z.string().max(400).nullable().optional(),
+  })).max(100).optional(),
 });
+type VariantInput = NonNullable<z.infer<typeof productBody>["variants"]>[number];
+
+/** Parent mahsulotning variant (child) mahsulotlarini kiritilgan ro'yxatga moslashtirish */
+async function syncVariants(parent: { id: number; bitoId: string; name: string; price: number; image: string | null; categoryBitoId: string | null; categoryName: string | null; trackStock: boolean }, incoming: VariantInput[] | undefined, hasVariants: boolean | undefined) {
+  if (incoming === undefined && hasVariants === undefined) return;
+  const existing = await prisma.product.findMany({ where: { parentBitoId: parent.bitoId, isDeleted: false } });
+  const byLabel = new Map(existing.map((e) => [e.variantLabel || e.name, e]));
+  const keep = new Set<string>();
+  const on = !!(hasVariants && incoming && incoming.length);
+  if (on) {
+    for (const v of incoming!) {
+      keep.add(v.label);
+      const price = v.price != null ? v.price : parent.price;
+      const stock = v.stock ?? 0;
+      const image = v.image || parent.image;
+      const data = {
+        name: parent.name, image, images: (image ? [image] : []) as object, price, stock,
+        stores: { main: { price, stock, available: true } } as object,
+        variantAttrs: v.attrs as object, variantLabel: v.label,
+        categoryBitoId: parent.categoryBitoId, categoryName: parent.categoryName, trackStock: parent.trackStock,
+        searchKey: buildSearchKey(parent.name, null, null, parent.categoryName, v.label),
+        hidden: false, isDeleted: false,
+      };
+      const ex = byLabel.get(v.label);
+      if (ex) await prisma.product.update({ where: { id: ex.id }, data });
+      else await prisma.product.create({ data: { ...data, bitoId: newCode("v_"), parentBitoId: parent.bitoId } });
+    }
+  }
+  for (const e of existing) if (!keep.has(e.variantLabel || e.name)) await prisma.product.update({ where: { id: e.id }, data: { isDeleted: true } });
+  await prisma.product.update({ where: { id: parent.id }, data: { isParent: on } });
+}
 
 function newCode(prefix: string): string { return prefix + randomBytes(8).toString("hex"); }
 
@@ -137,6 +176,7 @@ adminRouter.post("/catalog/products/create", async (req, res) => {
     discountPercent: b.discountPercent || 0, customFields: (b.customFields || []) as object,
     hidden: b.hidden ?? false, featured: b.featured ?? false, sortOrder: max + 1,
   } });
+  await syncVariants(p, b.variants, b.hasVariants);
   invalidateProductCache();
   await activity("product_created", `Mahsulot qo'shildi: ${p.name}`);
   res.json({ ok: true, id: p.id });
@@ -171,9 +211,18 @@ adminRouter.put("/catalog/products/:id/full", async (req, res) => {
   data.searchKey = buildSearchKey(b.name ?? cur.name, b.sku ?? cur.sku, b.barcode ?? cur.barcode, catName, ...(((b.customFields ?? (cur.customFields as { value?: string }[])) || []).map((c) => c.value || "")));
   const wasStock = Number(((cur.stores as Record<string, { stock?: number }>)?.main?.stock) ?? cur.stock ?? 0);
   const p = await prisma.product.update({ where: { id }, data });
+  await syncVariants(p, b.variants, b.hasVariants);
   invalidateProductCache();
   if (wasStock <= 0 && stock > 0) void notifyStockArrived([id]);
   res.json({ ok: true, id: p.id });
+});
+
+/** Parent mahsulotning variantlari (tahrirlashda prefill uchun) */
+adminRouter.get("/catalog/products/:id/variants", async (req, res) => {
+  const cur = await prisma.product.findUnique({ where: { id: Number(req.params.id) }, select: { bitoId: true } });
+  if (!cur) { res.status(404).json({ error: "not found" }); return; }
+  const kids = await prisma.product.findMany({ where: { parentBitoId: cur.bitoId, isDeleted: false }, orderBy: { sortOrder: "asc" } });
+  res.json(kids.map((k) => ({ label: k.variantLabel || k.name, attrs: (k.variantAttrs as { name: string; value: string }[]) || [], price: k.price, stock: k.stock, image: fileUrl(k.image) })));
 });
 
 adminRouter.delete("/catalog/products/:id", async (req, res) => {
@@ -527,7 +576,7 @@ adminRouter.post("/banners/reorder", async (req, res) => {
 // ---------- Katalog boshqaruvi ----------
 adminRouter.get("/catalog", async (_req, res) => {
   const [products, categories] = await Promise.all([
-    prisma.product.findMany({ where: { isDeleted: false }, orderBy: [{ sortOrder: "asc" }, { id: "asc" }] }),
+    prisma.product.findMany({ where: { isDeleted: false, parentBitoId: null }, orderBy: [{ sortOrder: "asc" }, { id: "asc" }] }),
     prisma.category.findMany({ where: { isDeleted: false }, orderBy: { sortOrder: "asc" } }),
   ]);
   res.json({
