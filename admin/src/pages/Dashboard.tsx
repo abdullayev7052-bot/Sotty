@@ -321,7 +321,7 @@ Buyurtma berdi: 930 kishi
 "oq krossovka"  613 marta
 "41 razmer"     401 marta
 Natijasiz: "adidas" — 96 marta`}</Example>
-            <p>«adidas» 96 marta natijasiz qidirilgan bo'lsa: yo shunday mahsulot yo'q (olib kelish kerak), yo Bito'dagi nomi boshqacha yozilgan.</p>
+            <p>«adidas» 96 marta natijasiz qidirilgan bo'lsa: yo shunday mahsulot yo'q (olib kelish kerak), yo katalogdagi nomi boshqacha yozilgan.</p>
             <p><b>Qidiruv → savat / buyurtma</b> — qidirganlarning qanchasi oxirigacha borgani.</p>
           </InfoDot>}>
           <div className="grid grid-cols-3 gap-2 mb-3 text-center">
@@ -351,7 +351,7 @@ Natijasiz: "adidas" — 96 marta`}</Example>
       {/* ===== Tezkor havolalar ===== */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         <Stat icon={<Bell size={20} />} tone="amber" label="Kutilayotgan mahsulotlar" value={fmtN(d.misc.waitlist)} sub="ochish →" to="/waitlist" />
-        <Stat icon={<Package size={20} />} tone="slate" label="Mahsulotlar (Bito)" value={fmtN(d.misc.products)} sub="katalog boshqaruvi →" to="/catalog" />
+        <Stat icon={<Package size={20} />} tone="slate" label="Mahsulotlar" value={fmtN(d.misc.products)} sub="katalog →" to="/catalog" />
       </div>
     </div>
   );

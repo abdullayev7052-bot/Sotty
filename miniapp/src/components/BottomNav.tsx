@@ -9,19 +9,12 @@ export function BottomNav() {
   const { t, v } = useT();
   const count = useCart((s) => s.items.reduce((a, x) => a + x.qty, 0));
   const loc = useLocation();
-  // Ulashish rejimidagi admin uchun faqat katalog va savatcha
-  const shareAdmin = useApp((s) => !!s.data?.user.shareAdmin);
-  const items = shareAdmin
-    ? [
-      { to: "/catalog", icon: Search, label: t("design", "navCatalog") },
-      { to: "/cart", icon: ShoppingCart, label: t("design", "navCart"), badge: count },
-    ]
-    : [
-      { to: "/", icon: Home, label: t("design", "navHome") },
-      { to: "/catalog", icon: Search, label: t("design", "navCatalog") },
-      { to: "/cart", icon: ShoppingCart, label: t("design", "navCart"), badge: count },
-      { to: "/profile", icon: User, label: t("design", "navProfile") },
-    ];
+  const items = [
+    { to: "/", icon: Home, label: t("design", "navHome") },
+    { to: "/catalog", icon: Search, label: t("design", "navCatalog") },
+    { to: "/cart", icon: ShoppingCart, label: t("design", "navCart"), badge: count },
+    { to: "/profile", icon: User, label: t("design", "navProfile") },
+  ];
   const activeStyle = v<string>("design", "navActive", "pill");
   const labels = v<boolean>("design", "navLabels", true);
   const iconSize = v<number>("design", "navIconSize", 22);

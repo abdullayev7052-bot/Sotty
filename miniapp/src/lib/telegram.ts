@@ -62,13 +62,6 @@ export function closeApp() {
   if (tg && inTelegram) tg.close();
 }
 
-/** Telegram ulashish oynasi (kanal/chat tanlash) */
-export function shareViaTelegram(url: string, text: string) {
-  const link = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`;
-  if (tg && inTelegram) tg.openTelegramLink(link);
-  else window.open(link, "_blank");
-}
-
 /** Havolani nusxalash (Telegram ichida ham ishlaydi) */
 export async function copyText(text: string): Promise<boolean> {
   try {
@@ -106,7 +99,6 @@ export function devUserId(): string | null {
 export function resolveTarget(target: string): { path?: string; url?: string } {
   const s = (target || "").trim();
   if (!s) return {};
-  if (s.startsWith("share:")) return { path: `/cart?share=${encodeURIComponent(s.slice(6))}` };
   if (s.startsWith("product:")) return { path: `/catalog?product=${encodeURIComponent(s.slice(8))}` };
   if (s.startsWith("category:")) return { path: `/catalog?category=${encodeURIComponent(s.slice(9))}` };
   if (s.startsWith("/")) return { path: s };

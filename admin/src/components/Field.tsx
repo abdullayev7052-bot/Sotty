@@ -36,7 +36,7 @@ export function Field({ def, value, onChange, options, onPatch }: { def: FieldDe
             {opts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             {!!value && !opts.some((o) => o.value === value) && <option value={String(value)}>{String(value)} (joriy)</option>}
           </select>
-          {missing && <div className="help text-amber-600">Ro'yxat Bito'dan yuklanmadi — avval API kalitni saqlang.</div>}{help}
+          {missing && <div className="help text-amber-600">Ro'yxat yuklanmadi.</div>}{help}
         </div>
       );
     }

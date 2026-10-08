@@ -1,5 +1,4 @@
 import { Router, type Request, type Response } from "express";
-import { refreshShareAdmins } from "../../erp/share.ts";
 import multer from "multer";
 import path from "node:path";
 import fs from "node:fs";
@@ -740,7 +739,6 @@ const staffBody = z.object({
   name: z.string().max(80).optional(),
   username: z.string().max(80).optional(),
   role: z.string().optional(),
-  shareAdmin: z.boolean().optional(),
 });
 
 adminRouter.post("/staff", async (req, res) => {
@@ -750,14 +748,13 @@ adminRouter.post("/staff", async (req, res) => {
   if (!exists && await overLimit(res, "staff")) return;
   const row = await prisma.staff.upsert({
     where: { shopId_telegramId: { shopId: currentShopId(), telegramId: b.telegramId } },
-    create: { telegramId: b.telegramId, name: b.name || null, username: b.username || null, role: b.role || "staff", shareAdmin: b.shareAdmin ?? false },
-    update: { name: b.name || undefined, username: b.username || undefined, role: b.role || undefined, shareAdmin: b.shareAdmin },
+    create: { telegramId: b.telegramId, name: b.name || null, username: b.username || null, role: b.role || "staff" },
+    update: { name: b.name || undefined, username: b.username || undefined, role: b.role || undefined },
   });
-  await refreshShareAdmins();
   res.json(row);
 });
 
-/** Xodimni tahrirlash (ID, ism, username, roli, ulashish rejimi) */
+/** Xodimni tahrirlash (ID, ism, username, roli) */
 adminRouter.put("/staff/:id", async (req, res) => {
   const b = staffBody.partial().parse(req.body);
   if (b.telegramId) {
@@ -771,16 +768,13 @@ adminRouter.put("/staff/:id", async (req, res) => {
       name: b.name === undefined ? undefined : (b.name || null),
       username: b.username === undefined ? undefined : (b.username || null),
       role: b.role || undefined,
-      shareAdmin: b.shareAdmin,
     },
   });
-  await refreshShareAdmins();
   res.json(row);
 });
 
 adminRouter.delete("/staff/:id", async (req, res) => {
   await prisma.staff.delete({ where: { id: Number(req.params.id) } });
-  await refreshShareAdmins();
   res.json({ ok: true });
 });
 

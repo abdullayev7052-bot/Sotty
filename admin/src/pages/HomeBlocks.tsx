@@ -37,7 +37,7 @@ export function HomeBlocksTab({ products, options }: { products: P[]; options?: 
   const create = async (kind: "products" | "chips") => {
     const b = await api.post<HomeBlock>("/home-blocks", {
       kind, source: kind === "chips" ? "field" : "manual",
-      title: { uz: kind === "chips" ? "Mualliflar" : "Hafta bestsellerlari", ru: "", en: "" },
+      title: { uz: "", ru: "", en: "" },
       style: kind === "chips" ? { shape: "circle", size: 72, showTitle: true } : { columns: 2 },
       limit: kind === "chips" ? 12 : 10,
     });
@@ -58,10 +58,10 @@ export function HomeBlocksTab({ products, options }: { products: P[]; options?: 
     <div>
       <div className="flex flex-wrap gap-2 mb-4">
         <button className="btn btn-primary" onClick={() => { void create("products"); }}><Plus size={16} /> Mahsulotlar bloki</button>
-        <button className="btn btn-ghost" onClick={() => { void create("chips"); }}><Plus size={16} /> Mini bloklar (rasmli)</button>
+        <button className="btn btn-ghost" onClick={() => { void create("chips"); }}><Plus size={16} /> Mini bloklar</button>
         <div className="help w-full">
-          <b>Mahsulotlar bloki</b> — bosh sahifada mahsulotlar qatori (masalan «Hafta bestsellerlari»).{" "}
-          <b>Mini bloklar</b> — rasmli doiralar (masalan «Mualliflar»); bosilganda katalog shu qiymat bo'yicha filtrlanadi.
+          <b>Mahsulotlar bloki</b> — bosh sahifada mahsulotlar qatori. Mahsulotlar <b>Katalog</b> bo'limidan tanlanadi (bir nechta mahsulotni belgilab «Bloklar»ga biriktiring).{" "}
+          <b>Mini bloklar</b> — rasmli doiralar; «Qaysi qo'shimcha maydon» tanlansa, mahsulotlarning o'sha maydon qiymatlari bo'yicha filtrlanadi.
           Bloklarning bosh sahifadagi o'rnini <b>Sozlamalar → Mini App → Dizayn → Bosh sahifadagi bloklar</b> da o'zgartirasiz.
         </div>
       </div>

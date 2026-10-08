@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Trash2, Plus, Send, MessageSquare, Users, Bell, Heart, Pencil, Check, X, Share2 } from "lucide-react";
+import { Trash2, Plus, Send, MessageSquare, Users, Bell, Heart, Pencil, Check, X } from "lucide-react";
 import { api } from "../lib/api.ts";
 import { ImageUpload, Modal, PageTitle, Spinner, Toggle, useToast, confirmDialog } from "../components/ui.tsx";
 import { LinkPicker } from "../components/LinkPicker.tsx";
@@ -37,7 +37,7 @@ function InterestList({ kind }: { kind: "wait" | "fav" }) {
               <span className="flex-1 min-w-0">
                 <span className="block text-sm font-medium truncate">{r.name}</span>
                 <span className="block text-xs text-slate-500">
-                  {r.gone ? <span className="text-red-500">Bito'da yo'q</span> : <>qoldiq: {r.stock}</>}
+                  {r.gone ? <span className="text-red-500">Sotuvda yo'q</span> : <>qoldiq: {r.stock}</>}
                   {r.hidden && <span className="text-slate-400"> · yashirilgan</span>}
                   {r.sku && <span className="text-slate-400"> · {r.sku}</span>}
                   {r.lastAt && <span className="text-slate-400"> · oxirgisi {new Date(r.lastAt).toLocaleDateString()}</span>}
@@ -76,15 +76,15 @@ export function WaitlistPage() {
   const [tab, setTab] = useState<"wait" | "fav">("wait");
   return (
     <div className="max-w-4xl">
-      <PageTitle title="Kutilayotgan mahsulotlar va Istaklar" description="Mijozlar qaysi mahsulotlarni kutmoqda va qaysilarini ❤️ bilan belgilagan — eng ko'p so'ralgani yuqorida" />
+      <PageTitle title="Talablar va Istaklar" description="Mijozlar qaysi mahsulotlarni kutmoqda va qaysilarini ❤️ bilan belgilagan — eng ko'p so'ralgani yuqorida" />
       <div className="flex gap-2 mb-4">
-        <button onClick={() => setTab("wait")} className={`px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 ${tab === "wait" ? "bg-[var(--primary)] text-white" : "bg-slate-100 text-slate-600"}`}><Bell size={16} /> Kutilayotgan mahsulotlar</button>
+        <button onClick={() => setTab("wait")} className={`px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 ${tab === "wait" ? "bg-[var(--primary)] text-white" : "bg-slate-100 text-slate-600"}`}><Bell size={16} /> Talablar</button>
         <button onClick={() => setTab("fav")} className={`px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 ${tab === "fav" ? "bg-[var(--primary)] text-white" : "bg-slate-100 text-slate-600"}`}><Heart size={16} /> Istaklar</button>
       </div>
       {tab === "wait" ? <InterestList kind="wait" /> : <InterestList kind="fav" />}
       <div className="help mt-3">
         {tab === "wait"
-          ? "Bito'da qoldiq paydo bo'lishi bilan kutayotgan mijozlarga xabar avtomatik yuboriladi va ular ro'yxatdan chiqadi."
+          ? "Mahsulot qoldig'i paydo bo'lishi bilan (qoldiq belgisi o'chirilsa yoki miqdor kiritilsa) kutayotgan mijozlarga xabar avtomatik yuboriladi va ular ro'yxatdan chiqadi."
           : "Aynan bitta mahsulotni yoqtirganlarga xabar yuborish: Kontent → Post → tugmaga shu mahsulotni tanlang → «Faqat shu mahsulotni istaklariga qo'shganlarga»."}
       </div>
     </div>
@@ -93,14 +93,14 @@ export function WaitlistPage() {
 
 /* ============ Guruhlar va xodimlar ============ */
 interface G { id: number; chatId: string; title: string | null; enabled: boolean; createdAt: string }
-interface S { id: number; telegramId: string; name: string | null; username: string | null; role: string; shareAdmin?: boolean }
+interface S { id: number; telegramId: string; name: string | null; username: string | null; role: string }
 export function GroupsPage() {
   const qc = useQueryClient();
   const toast = useToast((s) => s.show);
   const groups = useQuery({ queryKey: ["groups"], queryFn: () => api.get<G[]>("/groups"), refetchInterval: 15000 });
   const staff = useQuery({ queryKey: ["staff"], queryFn: () => api.get<S[]>("/staff") });
   const [chatId, setChatId] = useState("");
-  const [st, setSt] = useState({ telegramId: "", name: "", username: "", shareAdmin: false });
+  const [st, setSt] = useState({ telegramId: "", name: "", username: "" });
   const [edit, setEdit] = useState<{ id: number; telegramId: string; name: string; username: string } | null>(null);
   const reloadStaff = () => qc.invalidateQueries({ queryKey: ["staff"] });
   if (groups.isLoading || staff.isLoading) return <Spinner />;
@@ -126,10 +126,6 @@ export function GroupsPage() {
       <div className="card p-5">
         <div className="font-semibold flex items-center gap-2 mb-1"><Users size={18} /> Xodimlar</div>
         <div className="text-sm text-slate-500 mb-3">"Bot matnlari → Guruh sozlamalari → Holatni kim o'zgartira oladi" bo'limida <b>Faqat xodimlar</b> tanlangan bo'lsa, faqat shu ro'yxatdagilar tugmalarni bosa oladi. Telegram ID ni bilish uchun botga <code>/id</code> yozing.</div>
-        <div className="rounded-xl bg-slate-50 p-3 mb-3 text-sm text-slate-600 flex gap-2">
-          <Share2 size={16} className="mt-0.5 shrink-0 text-slate-400" />
-          <div><b>Ulashish admini</b> — Mini App'da faqat katalog va savatcha ko'radi, buyurtma bera olmaydi va mijoz sifatida qo'shilmaydi. Savatni yig'ib «Ulashish» tugmasi bilan kanal yoki chatga yuboradi; mijoz havolani bosganda mahsulotlar uning savatiga tushadi. Kerakli xodim yonidagi belgini yoqing.</div>
-        </div>
         <div className="divide-y divide-slate-100">
           {(staff.data || []).map((s) => edit?.id === s.id ? (
             <div key={s.id} className="grid sm:grid-cols-4 gap-2 py-3">
@@ -148,9 +144,8 @@ export function GroupsPage() {
             <div key={s.id} className="flex items-center gap-3 py-2">
               <div className="flex-1">
                 <div className="font-medium text-sm">{s.name || "—"} {s.username ? <span className="text-slate-400">@{s.username}</span> : null}</div>
-                <div className="text-xs text-slate-500 font-mono">{s.telegramId}{s.shareAdmin ? " · ulashish admini" : ""}</div>
+                <div className="text-xs text-slate-500 font-mono">{s.telegramId}</div>
               </div>
-              <Toggle value={!!s.shareAdmin} onChange={(v) => { void api.put(`/staff/${s.id}`, { shareAdmin: v }).then(() => { reloadStaff(); toast(v ? "Ulashish admini yoqildi" : "Ulashish admini o'chirildi"); }).catch((e) => toast(e.message, "err")); }} label="Ulashish admini" />
               <button className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100" title="Tahrirlash" onClick={() => setEdit({ id: s.id, telegramId: s.telegramId, name: s.name || "", username: s.username || "" })}><Pencil size={16} /></button>
               <button className="w-8 h-8 rounded-lg flex items-center justify-center text-red-500 hover:bg-red-50" title="O'chirish" onClick={() => { if (confirmDialog("O'chirilsinmi?")) void api.del(`/staff/${s.id}`).then(() => reloadStaff()); }}><Trash2 size={16} /></button>
             </div>
@@ -161,12 +156,8 @@ export function GroupsPage() {
           <input className="input font-mono" placeholder="Telegram ID" value={st.telegramId} onChange={(e) => setSt({ ...st, telegramId: e.target.value })} />
           <input className="input" placeholder="Ismi" value={st.name} onChange={(e) => setSt({ ...st, name: e.target.value })} />
           <input className="input" placeholder="username (@siz)" value={st.username} onChange={(e) => setSt({ ...st, username: e.target.value })} />
-          <button className="btn btn-primary" onClick={() => { void api.post("/staff", { telegramId: st.telegramId.trim(), name: st.name, username: st.username.replace("@", ""), shareAdmin: st.shareAdmin }).then(() => { setSt({ telegramId: "", name: "", username: "", shareAdmin: false }); reloadStaff(); }).catch((e) => toast(e.message, "err")); }}><Plus size={16} /> Qo'shish</button>
+          <button className="btn btn-primary" onClick={() => { void api.post("/staff", { telegramId: st.telegramId.trim(), name: st.name, username: st.username.replace("@", "") }).then(() => { setSt({ telegramId: "", name: "", username: "" }); reloadStaff(); }).catch((e) => toast(e.message, "err")); }}><Plus size={16} /> Qo'shish</button>
         </div>
-        <label className="flex items-center gap-2 mt-2 text-sm text-slate-600 cursor-pointer">
-          <input type="checkbox" className="w-4 h-4" checked={st.shareAdmin} onChange={(e) => setSt({ ...st, shareAdmin: e.target.checked })} />
-          Yangi xodim <b>ulashish admini</b> bo'lsin
-        </label>
       </div>
     </div>
   );

@@ -63,17 +63,15 @@ function Shell() {
     </div>
   );
   if (!data) return null;
-  const shareAdmin = !!data.user.shareAdmin;
   return (
     <>
       <div key={loc.pathname}>
         <Routes location={loc}>
-          {/* Ulashish rejimidagi admin uchun faqat katalog va savatcha */}
-          <Route path="/" element={shareAdmin ? <Catalog /> : <Home />} />
+          <Route path="/" element={<Home />} />
           <Route path="/catalog" element={<Catalog />} />
           <Route path="/cart" element={<Cart />} />
-          <Route path="/profile" element={shareAdmin ? <Catalog /> : <Profile />} />
-          <Route path="*" element={shareAdmin ? <Catalog /> : <Home />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="*" element={<Home />} />
         </Routes>
       </div>
       <BottomNav />

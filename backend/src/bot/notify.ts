@@ -16,7 +16,6 @@ import { activity, errMsg, log } from "../logger.ts";
 
 function actorLabel(by: StageActor): string {
   if (by.type === "staff") return by.telegramId ? `<a href="tg://user?id=${by.telegramId}">${esc(by.name || "Xodim")}</a>` : esc(by.name || "Xodim");
-  if (by.type === "bito") return "Bito";
   if (by.type === "customer") return "mijoz";
   return "tizim";
 }
