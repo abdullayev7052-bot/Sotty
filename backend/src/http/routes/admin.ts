@@ -217,6 +217,19 @@ adminRouter.put("/catalog/products/:id/full", async (req, res) => {
   res.json({ ok: true, id: p.id });
 });
 
+// ---------- Qayta ishlatiladigan "Tanlovli" qo'shimcha maydon ta'riflari ----------
+interface FieldDef { id: string; name: string; options: string[] }
+adminRouter.get("/catalog/field-defs", async (_req, res) => {
+  const row = await prisma.setting.findUnique({ where: { shopId_key: { shopId: currentShopId(), key: "fieldDefs" } } });
+  res.json(((row?.value as { list?: FieldDef[] } | null)?.list) || []);
+});
+adminRouter.put("/catalog/field-defs", async (req, res) => {
+  const list = z.array(z.object({ id: z.string().max(60), name: z.string().trim().min(1).max(120), options: z.array(z.string().max(160)).max(300) })).max(100).parse(req.body);
+  const sid = currentShopId();
+  await prisma.setting.upsert({ where: { shopId_key: { shopId: sid, key: "fieldDefs" } }, create: { shopId: sid, key: "fieldDefs", value: { list } }, update: { value: { list } } });
+  res.json({ ok: true });
+});
+
 /** Parent mahsulotning variantlari (tahrirlashda prefill uchun) */
 adminRouter.get("/catalog/products/:id/variants", async (req, res) => {
   const cur = await prisma.product.findUnique({ where: { id: Number(req.params.id) }, select: { bitoId: true } });

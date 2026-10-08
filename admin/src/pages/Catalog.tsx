@@ -279,6 +279,8 @@ export function CatalogPage() {
 
 function newFieldId(): string { return "f" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 
+interface FieldDef { id: string; name: string; options: string[] }
+interface CFRow { id: string; name: string; value: string; type: "text" | "select" }
 interface Dim { name: string; values: string[] }
 interface Combo { label: string; attrs: { name: string; value: string }[] }
 interface VariantItem { label: string; attrs: { name: string; value: string }[]; price?: number; stock?: number; image?: string | null }
@@ -317,7 +319,6 @@ function ProductEditor({ initial, cats, onClose, onSaved }: { initial: Partial<P
     images: initImages as string[],
     trackStock: initial.trackStock ?? false,
     stock: String(initial.stock ?? ""),
-    customFields: (initial.customFields || []) as CF[],
   });
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -375,9 +376,20 @@ function ProductEditor({ initial, cats, onClose, onSaved }: { initial: Partial<P
     } catch (e) { toast((e as Error).message, "err"); }
   };
 
-  const addField = () => setF((d) => ({ ...d, customFields: [...d.customFields, { id: newFieldId(), name: "", value: "" }] }));
-  const setField = (i: number, k: "name" | "value", v: string) => setF((d) => ({ ...d, customFields: d.customFields.map((c, j) => j === i ? { ...c, [k]: v } : c) }));
-  const removeField = (i: number) => setF((d) => ({ ...d, customFields: d.customFields.filter((_, j) => j !== i) }));
+  // ----- Qo'shimcha maydonlar (Matn / Tanlovli) -----
+  const [defs, setDefs] = useState<FieldDef[]>([]);
+  const [cfs, setCfs] = useState<CFRow[]>((initial.customFields || []).map((c) => ({ ...c, type: "text" as const })));
+  useEffect(() => {
+    api.get<FieldDef[]>("/catalog/field-defs").then((list) => {
+      setDefs(list);
+      // Mavjud maydonlarning turini aniqlaymiz: nomi tanlovli ta'rifga mos kelsa — "select"
+      setCfs((rows) => rows.map((r) => list.some((d) => d.name.toLowerCase() === r.name.toLowerCase()) ? { ...r, type: "select" } : r));
+    }).catch(() => {});
+  }, []);
+  const addField = (type: "text" | "select") => setCfs((d) => [...d, { id: newFieldId(), name: "", value: "", type }]);
+  const setField = (i: number, k: "name" | "value", v: string) => setCfs((d) => d.map((c, j) => j === i ? { ...c, [k]: v } : c));
+  const removeField = (i: number) => setCfs((d) => d.filter((_, j) => j !== i));
+  const defByName = (name: string) => defs.find((d) => d.name.toLowerCase() === name.trim().toLowerCase());
 
   const save = async () => {
     if (!f.name.trim()) { toast("Nomi kiritilmagan", "err"); return; }
@@ -387,12 +399,23 @@ function ProductEditor({ initial, cats, onClose, onSaved }: { initial: Partial<P
     if (oldP != null && !(oldP > Number(f.price))) { toast("Eski narx yangi narxdan katta bo'lishi kerak", "err"); return; }
     setSaving(true);
     const variantsOn = hasVariants && combos.length > 0;
+    // Tanlovli maydon ta'riflari: yangi maydon / yangi qiymat avtomatik saqlanadi (qayta ishlatish uchun)
+    const newDefs: FieldDef[] = defs.map((d) => ({ ...d, options: [...d.options] }));
+    let defsChanged = false;
+    for (const c of cfs) {
+      if (c.type !== "select" || !c.name.trim()) continue;
+      const nm = c.name.trim(), val = c.value.trim();
+      const idx = newDefs.findIndex((d) => d.name.toLowerCase() === nm.toLowerCase());
+      if (idx < 0) { newDefs.push({ id: c.id, name: nm, options: val ? [val] : [] }); defsChanged = true; }
+      else if (val && !newDefs[idx].options.includes(val)) { newDefs[idx].options.push(val); defsChanged = true; }
+    }
+    const cfOut = cfs.filter((c) => c.name.trim()).map((c) => { const def = c.type === "select" ? newDefs.find((d) => d.name.toLowerCase() === c.name.trim().toLowerCase()) : null; return { id: def?.id || c.id, name: c.name.trim(), value: c.value }; });
     const body = {
       name: f.name.trim(), price: Number(f.price) || 0, oldPrice: oldP,
       categoryCode: f.categoryCode || null, note: f.note || null,
       image: f.images[0] || null, images: f.images,
       trackStock: f.trackStock, stock: f.trackStock ? (Number(f.stock) || 0) : 0,
-      customFields: f.customFields.filter((c) => c.name.trim()).map((c) => ({ id: c.id, name: c.name.trim(), value: c.value })),
+      customFields: cfOut,
       hasVariants: variantsOn,
       variants: variantsOn ? combos.map((c): VariantItem => ({
         label: c.label, attrs: c.attrs,
@@ -402,6 +425,7 @@ function ProductEditor({ initial, cats, onClose, onSaved }: { initial: Partial<P
       })) : [],
     };
     try {
+      if (defsChanged) { await api.put("/catalog/field-defs", newDefs); setDefs(newDefs); }
       if (initial.id) await api.put(`/catalog/products/${initial.id}/full`, body);
       else await api.post("/catalog/products/create", body);
       toast("Saqlandi ✅");
@@ -460,17 +484,27 @@ function ProductEditor({ initial, cats, onClose, onSaved }: { initial: Partial<P
         </div>
 
         <div>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <label className="label mb-0">Qo'shimcha maydon</label>
-            <button className="btn btn-ghost !py-1 !px-2 text-xs" onClick={addField}><Plus size={14} /> Qo'shimcha maydon</button>
-          </div>
-          {f.customFields.map((cf, i) => (
-            <div key={cf.id} className="flex gap-2 mt-2">
-              <input className="input flex-1" placeholder="Nomi (masalan: Brend)" value={cf.name} onChange={(e) => setField(i, "name", e.target.value)} />
-              <input className="input flex-1" placeholder="Qiymati (masalan: Nike)" value={cf.value} onChange={(e) => setField(i, "value", e.target.value)} />
-              <button className="w-9 rounded-lg flex items-center justify-center text-rose-500 hover:bg-rose-50 shrink-0" onClick={() => removeField(i)}><Trash2 size={15} /></button>
+            <div className="flex gap-2">
+              <button className="btn btn-ghost !py-1 !px-2 text-xs" onClick={() => addField("text")}><Plus size={14} /> Matn</button>
+              <button className="btn btn-ghost !py-1 !px-2 text-xs" onClick={() => addField("select")}><Plus size={14} /> Tanlovli</button>
             </div>
-          ))}
+          </div>
+          <datalist id="cf-names">{defs.map((d) => <option key={d.id} value={d.name} />)}</datalist>
+          {cfs.map((cf, i) => {
+            const opts = cf.type === "select" ? (defByName(cf.name)?.options || []) : [];
+            return (
+              <div key={cf.id} className="flex gap-2 mt-2 items-center">
+                <span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 ${cf.type === "select" ? "bg-violet-100 text-violet-700" : "bg-slate-100 text-slate-500"}`}>{cf.type === "select" ? "Tanlovli" : "Matn"}</span>
+                <input className="input flex-1" placeholder="Nomi (masalan: Brend)" value={cf.name} list={cf.type === "select" ? "cf-names" : undefined} onChange={(e) => setField(i, "name", e.target.value)} />
+                <input className="input flex-1" placeholder="Qiymati (masalan: Nike)" value={cf.value} list={cf.type === "select" ? `cf-opts-${i}` : undefined} onChange={(e) => setField(i, "value", e.target.value)} />
+                {cf.type === "select" && <datalist id={`cf-opts-${i}`}>{opts.map((o) => <option key={o} value={o} />)}</datalist>}
+                <button className="w-9 rounded-lg flex items-center justify-center text-rose-500 hover:bg-rose-50 shrink-0" onClick={() => removeField(i)}><Trash2 size={15} /></button>
+              </div>
+            );
+          })}
+          <div className="help mt-1">«Matn» — har mahsulotga alohida yoziladi. «Tanlovli» — nomi va qiymatlar saqlanadi, keyingi mahsulotlarda ro'yxatdan tez tanlanadi.</div>
         </div>
 
         <div className="rounded-xl bg-slate-50 p-3">
