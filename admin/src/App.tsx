@@ -64,7 +64,15 @@ function Login({ onOk, b }: { onOk: () => void; b?: Branding }) {
     setBusy(true); setErr("");
     try { await fn(); } catch (x) { setErr((x as Error).message); } finally { setBusy(false); }
   };
-  const doLogin = (e: React.FormEvent) => { e.preventDefault(); run(async () => { await api.post("/login", { phone, password: pw }); onOk(); }); };
+  const doLogin = (e: React.FormEvent) => { e.preventDefault(); run(async () => {
+    const r = await api.post<{ shop?: string }>("/login", { phone, password: pw });
+    // Login telefon bo'yicha do'konni topadi — kerak bo'lsa o'sha do'kon kontekstiga o'tamiz
+    if (r && r.shop && r.shop !== "main") {
+      const cur = new URLSearchParams(location.search).get("shop") || sessionStorage.getItem("sotty_admin_shop") || "";
+      if (r.shop !== cur) { sessionStorage.setItem("sotty_admin_shop", r.shop); location.href = "/admin/?shop=" + encodeURIComponent(r.shop); return; }
+    }
+    onOk();
+  }); };
   const doForgot = (e: React.FormEvent) => { e.preventDefault(); run(async () => { await api.post("/forgot", { phone }); setMsg(t("codeSentHint")); setMode("reset"); }); };
   const doReset = (e: React.FormEvent) => { e.preventDefault(); run(async () => { await api.post("/reset", { phone, code, newPassword: np }); setMsg(t("passwordChanged")); setPw(""); setMode("login"); }); };
 
