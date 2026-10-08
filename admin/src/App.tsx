@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation } from "react-router-dom";
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
-import { LayoutDashboard, Settings, Plug, ListChecks, Bot, Palette, LayoutGrid, ShoppingCart, User, Images, GalleryHorizontal, Package, Bell, Users, Send, ScrollText, LogOut, Menu, X, Moon, Sun, Search, Smartphone, ClipboardList, MessageSquare, Monitor, ChevronRight, Store, Warehouse, Wallet, Ticket } from "lucide-react";
+import { LayoutDashboard, Settings, Plug, ListChecks, Bot, Palette, LayoutGrid, ShoppingCart, User, Images, GalleryHorizontal, Package, Bell, Users, Send, ScrollText, LogOut, Menu, X, Moon, Sun, Search, Smartphone, ClipboardList, MessageSquare, Monitor, ChevronRight, Store, CreditCard, Ticket } from "lucide-react";
 import { api } from "./lib/api.ts";
 import { Toaster, useToast } from "./components/ui.tsx";
 import { Dashboard } from "./pages/Dashboard.tsx";
@@ -9,11 +9,9 @@ import { SettingsPage, useSchema } from "./pages/Settings.tsx";
 import { StoriesPage, BannersPage } from "./pages/Media.tsx";
 import { useLang, useT, type UiLang } from "./lib/i18n.ts";
 import { CatalogPage } from "./pages/Catalog.tsx";
-import { WarehousePage } from "./pages/Warehouse.tsx";
-import { FinancePage } from "./pages/Finance.tsx";
 import { PromotionsPage } from "./pages/Promotions.tsx";
 import { ActivityPage, BroadcastPage, GroupsPage, WaitlistPage } from "./pages/Misc.tsx";
-import { BotPage } from "./pages/Integration.tsx";
+import { BotPage, ChannelPage } from "./pages/Integration.tsx";
 import { SearchPalette, useSearchHotkey } from "./components/Search.tsx";
 import { PhoneInput } from "./components/PhoneInput.tsx";
 import { NAV, type NavItem } from "./lib/nav.ts";
@@ -22,7 +20,7 @@ const qc = new QueryClient({ defaultOptions: { queries: { retry: 1, refetchOnWin
 type Icon = React.ComponentType<{ size?: number; className?: string }>;
 const ICONS: Record<string, Icon> = {
   settings: Settings, plug: Plug, "list-checks": ListChecks, bot: Bot, palette: Palette, "layout-grid": LayoutGrid, "shopping-cart": ShoppingCart, user: User, "layout-dashboard": LayoutDashboard,
-  images: Images, "gallery-horizontal": GalleryHorizontal, package: Package, bell: Bell, users: Users, send: Send, "scroll-text": ScrollText, smartphone: Smartphone, "clipboard-list": ClipboardList, "message-square": MessageSquare, monitor: Monitor, store: Store, warehouse: Warehouse, wallet: Wallet, ticket: Ticket,
+  images: Images, "gallery-horizontal": GalleryHorizontal, package: Package, bell: Bell, users: Users, send: Send, "scroll-text": ScrollText, smartphone: Smartphone, "clipboard-list": ClipboardList, "message-square": MessageSquare, monitor: Monitor, store: Store, "credit-card": CreditCard, ticket: Ticket,
 };
 
 interface Branding { title?: string; subtitle?: string; businessName?: string; emoji?: string; logo?: string; primaryColor?: string; darkMode?: string }
@@ -210,10 +208,9 @@ function Shell({ onLogout, b, theme }: { onLogout: () => void; b?: Branding; the
           <Route path="/banners" element={<BannersPage />} />
           <Route path="/broadcast" element={<BroadcastPage />} />
           <Route path="/catalog" element={<CatalogPage />} />
-          <Route path="/warehouse" element={<WarehousePage />} />
-          <Route path="/finance" element={<FinancePage />} />
           <Route path="/promotions" element={<PromotionsPage />} />
           <Route path="/integration/bot" element={<BotPage />} />
+          <Route path="/integration/channel" element={<ChannelPage />} />
           <Route path="/groups" element={<GroupsPage />} />
           <Route path="/settings/checkout" element={<Navigate to="/settings/checkout/cart" replace />} />
           <Route path="/settings/:section/:part" element={<SettingsPage />} />

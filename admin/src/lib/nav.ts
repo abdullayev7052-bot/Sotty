@@ -1,8 +1,8 @@
 /**
  * Admin panel menyu tuzilmasi (panelsturktura bo'yicha):
  * 1.1 Dashboard → 1.1.1 Kutilayotgan mahsulotlar
- * 2. Kontent: Storis, Banner, Post, Katalog boshqaruvi
- * 3. Integratsiya: Bito, Bot, Guruh
+ * 2. Kontent: Storis, Banner, Post, Katalog
+ * 3. Integratsiya: Telegram (Bot, Kanal, Guruh), To'lovlar
  * 4. Sozlamalar: Umumiy, Mini App (Dizayn, Katalog, Savatcha, Buyurtma, Profil), Bot (Bot matnlari, Buyurtma holatlari), Admin panel
  * 5.1 Jurnal
  */
@@ -23,15 +23,16 @@ export const NAV: NavSection[] = [
     { key: "promotions", label: "promotions", icon: "ticket", to: "/promotions", keywords: ["aksiya", "chegirma", "promo", "promo-kod", "kupon", "скидка", "акция", "promotion", "discount", "coupon"] },
   ] },
   { key: "control", title: "control", items: [
-    { key: "catalog", label: "catalog", icon: "package", to: "/catalog", keywords: ["mahsulot", "kategoriya", "yashirish", "tavsiya", "chegirma", "tartib", "товары", "products", "nazorat"] },
-    { key: "warehouse", label: "warehouse", icon: "warehouse", to: "/warehouse", keywords: ["ombor", "kirim", "chiqim", "xarid", "sotuv", "qoldiq", "tan narx", "yetkazib beruvchi", "inventarizatsiya", "склад", "приход", "расход", "stock", "inventory"] },
-    { key: "finance", label: "finance", icon: "wallet", to: "/finance", keywords: ["moliya", "kassa", "pul", "tushum", "xarajat", "foyda", "hisobot", "qarz", "qarzdorlik", "balans", "to'lov", "финансы", "касса", "долг", "finance", "cash", "profit"] },
-    { key: "waitlist", label: "waitlist", icon: "bell", to: "/waitlist", keywords: ["kelganda eslating", "kutilmoqda", "ожидаемые", "istaklarim", "like", "yurakcha", "favourites", "избранное"] },
+    { key: "catalog", label: "catalog", icon: "package", to: "/catalog", keywords: ["mahsulot", "kategoriya", "yashirish", "tartib", "товары", "products", "nazorat", "katalog"] },
+    { key: "waitlist", label: "waitlist", icon: "bell", to: "/waitlist", keywords: ["talablar", "kelganda eslating", "kutilmoqda", "ожидаемые", "istaklarim", "like", "yurakcha", "favourites", "избранное"] },
   ] },
   { key: "integration", title: "integration", items: [
-    { key: "bot", label: "bot", icon: "bot", to: "/integration/bot", keywords: ["token", "BotFather", "ngrok", "ommaviy manzil", "public url", "Mini App manzili", "телеграм бот"] },
-    { key: "payments", label: "payments", icon: "credit-card", to: "/settings/payments", keywords: ["payme", "to'lov", "karta", "onlayn to'lov", "оплата", "платеж", "payment", "kassa", "merchant"] },
-    { key: "groups", label: "groups", icon: "users", to: "/groups", keywords: ["guruh", "xodimlar", "staff", "buyurtmalar guruhi", "группы", "сотрудники"] },
+    { key: "telegram", label: "telegram", icon: "send", children: [
+      { key: "bot", label: "bot", icon: "bot", to: "/integration/bot", keywords: ["token", "BotFather", "телеграм бот"] },
+      { key: "channel", label: "channel", icon: "send", to: "/integration/channel", keywords: ["kanal", "канал", "channel"] },
+      { key: "groups", label: "groups", icon: "users", to: "/groups", keywords: ["guruh", "xodimlar", "staff", "buyurtmalar guruhi", "группы", "сотрудники"] },
+    ] },
+    { key: "payments", label: "payments", icon: "credit-card", to: "/settings/payments", keywords: ["to'lov", "karta", "onlayn to'lov", "оплата", "платеж", "payment", "kassa"] },
   ] },
   { key: "settings", title: "settings", items: [
     { key: "general", label: "general", icon: "settings", to: "/settings/general", keywords: ["do'kon nomi", "tillar", "valyuta", "parol", "aloqa"] },
