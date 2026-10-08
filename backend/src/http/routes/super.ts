@@ -3,6 +3,8 @@ import { z } from "zod";
 import { prisma, runWithShop } from "../../db.ts";
 import { superAuth, superLogin, superLogout, superGoogle, setAdminPassword } from "../auth.ts";
 import { env } from "../../env.ts";
+import { normalizePhone } from "../../utils/format.ts";
+import { DEFAULT_SHOP_ID } from "../../db.ts";
 import { startShopBot, stopShopBot } from "../../bot/manager.ts";
 import { clearTariffCache } from "../../erp/limits.ts";
 import { errMsg, log } from "../../logger.ts";
@@ -133,13 +135,19 @@ superRouter.get("/shops/:id", async (req, res) => {
     prisma.order.aggregate({ _sum: { total: true } }),
     prisma.activityLog.groupBy({ by: ["type"], _count: { _all: true } }),
   ]));
-  const [devices, payments] = await Promise.all([
+  const [devices, payments, authRow] = await Promise.all([
     prisma.adminSession.count({ where: { shopId: id } }),
     prisma.shopPayment.findMany({ where: { shopId: id }, orderBy: { createdAt: "desc" }, take: 20 }),
+    runWithShop(id, () => prisma.setting.findUnique({ where: { shopId_key: { shopId: id, key: "auth" } }, select: { key: true } })),
   ]);
+  // Login diagnostikasi: aynan qaysi telefon raqami bilan kiriladi va parol o'rnatilganmi
+  let loginPhone = normalizePhone(shop.ownerPhone || "");
+  if (!loginPhone && id === DEFAULT_SHOP_ID && env.ADMIN_PHONE) loginPhone = normalizePhone(env.ADMIN_PHONE);
+  const hasPassword = !!authRow || id === DEFAULT_SHOP_ID;
   res.json({
     shop: { ...shop, botToken: shop.botToken ? "••••••" + shop.botToken.slice(-6) : null, hasToken: !!shop.botToken },
     counts: { users, customers, products, orders, revenue: ordersAgg._sum.total || 0, devices },
+    login: { phone: loginPhone || null, hasPassword },
     sections: sections.map((r) => ({ type: r.type, count: r._count._all })).sort((a, b) => b.count - a.count),
     payments,
   });

@@ -187,6 +187,12 @@ async function openDetail(s) {
       <div class="card" style="padding:12px;margin-bottom:12px">
         <div><b>Tarif:</b> ${TARIFF[d.shop.tariff]||d.shop.tariff} · <b>Boshlanish:</b> ${dt(d.shop.tariffStart)} · <b>Tugash:</b> ${dt(d.shop.paidUntil)} · <b>Qurilma limiti:</b> ${d.shop.deviceLimit}</div>
       </div>
+      <div class="card" style="padding:12px;margin-bottom:12px;background:${d.login.phone?'#f0fdf4':'#fff7ed'}">
+        <div style="margin-bottom:6px"><b>🔑 Login telefoni:</b> ${d.login.phone ? '<code>'+esc(d.login.phone)+'</code>' : '<span style="color:var(--rose)">⚠️ belgilanmagan — login ishlamaydi!</span>'} · <b>Parol:</b> ${d.login.hasPassword?'✅ o\'rnatilgan':'❌ yo\'q'}</div>
+        <div style="display:flex;gap:8px"><input id="setphone" placeholder="+998 90 123 45 67" value="${esc(d.login.phone||"")}" /><button class="btn primary" id="savephone">Telefonni saqlash</button></div>
+        <div class="muted" style="font-size:12px;margin-top:4px">Admin shu telefon + parol bilan kiradi. Login ishlashi uchun telefon TO'G'RI bo'lishi shart.</div>
+        <div id="phmsg" style="margin-top:4px"></div>
+      </div>
       <h3 style="margin:8px 0 6px">🔐 Admin parolini tiklash</h3>
       <div style="display:flex;gap:8px"><input id="newpw" type="text" placeholder="yangi parol (kamida 6)" /><button class="btn primary" id="setpw">O'rnatish</button></div>
       <div class="muted" style="font-size:12px;margin-top:4px">Parollar shifrlangan — ko'rsatib bo'lmaydi, faqat yangisini o'rnatish mumkin.</div>
@@ -214,6 +220,11 @@ async function openDetail(s) {
       ov.querySelectorAll("[data-rev]").forEach((b) => b.onclick = async () => { await api.del("/shops/" + s.id + "/devices/" + b.getAttribute("data-rev")); loadDevs(); });
     };
     loadDevs();
+    ov.querySelector("#savephone").onclick = async () => {
+      const phone = ov.querySelector("#setphone").value.trim(); const m = ov.querySelector("#phmsg");
+      try { await api.put("/shops/" + s.id, { ownerPhone: phone }); m.innerHTML = '<span style="color:var(--green)">✅ Telefon saqlandi. Endi shu raqam + parol bilan kiring.</span>'; }
+      catch (e) { m.innerHTML = '<span class="err">' + esc(e.message) + '</span>'; }
+    };
     ov.querySelector("#setpw").onclick = async () => {
       const pw = ov.querySelector("#newpw").value.trim(); const m = ov.querySelector("#pwmsg");
       try { await api.post("/shops/" + s.id + "/password", { password: pw }); m.innerHTML = '<span style="color:var(--green)">✅ Parol yangilandi</span>'; ov.querySelector("#newpw").value = ""; }
