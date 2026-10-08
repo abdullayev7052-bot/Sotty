@@ -54,7 +54,7 @@ export interface Variant {
   price: number; basePrice?: number; discountPercent?: number; stock: number; image: string | null; images: (string | null)[]; boxItem: number; sku: string | null;
 }
 export interface Product {
-  id: number; bitoId: string; name: string; image: string | null; images: (string | null)[]; price: number; basePrice?: number; discountPercent?: number; stock: number; boxItem: number;
+  id: number; bitoId: string; name: string; image: string | null; images: (string | null)[]; price: number; basePrice?: number; discountPercent?: number; oldPrice?: number | null; stock: number; trackStock?: boolean; boxItem: number;
   measure: string | null; measureDecimals: number; sku: string | null; categoryId: string | null; categoryName: string | null; note: string | null;
   customFields: { id?: string; name: string; value: string }[]; featured: boolean; inWaitlist: boolean;
   /** Kartochka betidagi qo'shimcha matn (masalan muallif) */

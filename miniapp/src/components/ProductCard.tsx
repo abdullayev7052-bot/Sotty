@@ -1,3 +1,4 @@
+import { useState, useEffect, useMemo } from "react";
 import { motion } from "motion/react";
 import { Plus, Bell, BellRing, Heart } from "lucide-react";
 import type { Product } from "../lib/api.ts";
@@ -50,8 +51,10 @@ export function ProductCard({ p, onOpen, onWaitlist, index = 0 }: { p: Product; 
   const item = useCart((s) => s.items.find((x) => x.productId === p.id));
   const add = useCart((s) => s.add);
   const setQty = useCart((s) => s.setQty);
-  const st = f.stock(p);
-  const out = p.stock <= 0 && !f.canOrderOut;
+  // Qoldiq hisobini yuritmaydigan mahsulot — har doim mavjud, belgi ko'rsatilmaydi
+  const tracked = p.trackStock !== false;
+  const st = tracked ? f.stock(p) : null;
+  const out = tracked && p.stock <= 0 && !f.canOrderOut;
   // Uzun nomlar uchun shriftni biroz kichraytiramiz (kartochkalar bir xil bo'lib qolsin)
   const len = p.name.length;
   const shrink = len > 64 ? 0.8 : len > 46 ? 0.87 : len > 32 ? 0.93 : 1;
@@ -62,11 +65,21 @@ export function ProductCard({ p, onOpen, onWaitlist, index = 0 }: { p: Product; 
   const nameStyle: React.CSSProperties = { color: f.nameColorResolved, fontSize, fontWeight: f.nameWeight, lineHeight };
   const fav = useFavorites((s) => s.isFav(p));
   const toggleFav = useFavorites((s) => s.toggle);
+  // Rasmlar: asosiy birinchi; bir nechta bo'lsa har 4 soniyada aylanadi
+  const gallery = useMemo(() => { const a = (p.images || []).filter(Boolean) as string[]; return a.length ? a : (p.image ? [p.image] : [null]); }, [p.images, p.image]);
+  const [imgIdx, setImgIdx] = useState(0);
+  useEffect(() => {
+    if (gallery.length <= 1) { setImgIdx(0); return; }
+    const id = setInterval(() => setImgIdx((i) => (i + 1) % gallery.length), 4000);
+    return () => clearInterval(id);
+  }, [gallery.length]);
+  const off = (p.oldPrice && p.oldPrice > p.price) ? Math.round((1 - p.price / p.oldPrice) * 100) : (p.discountPercent || 0);
+  const strike = (p.oldPrice && p.oldPrice > p.price) ? p.oldPrice : (p.discountPercent && p.basePrice ? p.basePrice : null);
   return (
     <motion.div layout {...cardVariants(index)} className="card overflow-hidden flex flex-col h-full">
       <motion.button whileTap={{ scale: tapScale() }} onClick={() => { haptic.light(); onOpen(p); }} className="text-left">
         <div className="relative">
-          <Img src={p.image} alt={p.name} name={p.name} className={`aspect-square w-full ${out ? "opacity-60 grayscale-[35%]" : ""}`} />
+          <Img src={gallery[imgIdx] || p.image} alt={p.name} name={p.name} className={`aspect-square w-full transition-opacity duration-500 ${out ? "opacity-60 grayscale-[35%]" : ""}`} />
           {st && (
             <span className={`absolute top-2 left-2 text-[10px] font-semibold px-2 py-0.5 rounded-full ${st.out ? "bg-slate-800/80 text-white" : "bg-white/90 text-slate-700"}`}>{st.text}</span>
           )}
@@ -76,7 +89,7 @@ export function ProductCard({ p, onOpen, onWaitlist, index = 0 }: { p: Product; 
               <Heart size={17} className={fav ? "fill-red-500 text-red-500" : "text-slate-400"} />
             </motion.span>
           )}
-          {p.discountPercent ? <span className="absolute top-2 right-2 text-[10px] font-bold px-2 py-0.5 rounded-full text-white" style={{ background: "var(--accent)" }}>-{p.discountPercent}%</span> : p.featured && <span className="absolute top-2 right-2 text-[10px] font-semibold px-2 py-0.5 rounded-full text-white" style={{ background: "var(--accent)" }}>★</span>}
+          {off ? <span className="absolute top-2 right-2 text-[10px] font-bold px-2 py-0.5 rounded-full text-white" style={{ background: "var(--accent)" }}>-{off}%</span> : p.featured && <span className="absolute top-2 right-2 text-[10px] font-semibold px-2 py-0.5 rounded-full text-white" style={{ background: "var(--accent)" }}>★</span>}
         </div>
         <div className="px-3 pt-2.5">
           {/* Nomi doim 2 qatorga sig'adi: uzun bo'lsa shrift avtomatik kichrayadi, ortiqchasi kesiladi */}
@@ -87,7 +100,7 @@ export function ProductCard({ p, onOpen, onWaitlist, index = 0 }: { p: Product; 
             </div>
           ) : null}
           {f.showSku && p.sku && <div className="text-[11px] text-slate-400 mt-0.5">#{p.sku}</div>}
-          <div className="font-bold mt-1 flex items-baseline gap-1.5 flex-wrap">{f.price(p.price)}{p.discountPercent && p.basePrice ? <span className="text-[11px] font-normal text-slate-400 line-through">{f.price(p.basePrice)}</span> : null}</div>
+          <div className="font-bold mt-1 flex items-baseline gap-1.5 flex-wrap">{f.price(p.price)}{strike ? <span className="text-[11px] font-normal text-slate-400 line-through">{f.price(strike)}</span> : null}</div>
         </div>
       </motion.button>
       <div className="px-3 pb-3 pt-2 mt-auto">

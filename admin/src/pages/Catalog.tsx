@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, EyeOff, Star, ArrowUp, ArrowDown, Search, ArrowDownAZ, Copy, ChevronsUp, ChevronsDown, Percent, Image as ImageIcon, Plus, Pencil, Trash2 } from "lucide-react";
+import { Eye, EyeOff, Star, ArrowUp, ArrowDown, Search, ArrowDownAZ, Copy, ChevronsUp, ChevronsDown, Percent, Image as ImageIcon, Plus, Pencil, Trash2, Info, X } from "lucide-react";
 import { api, type Options } from "../lib/api.ts";
 import { Modal, PageTitle, Spinner, Toggle, useToast } from "../components/ui.tsx";
 import { HomeBlocksTab } from "./HomeBlocks.tsx";
 
-interface P { id: number; bitoId: string; name: string; image: string | null; images?: (string | null)[]; price: number; stock: number; categoryId: string | null; categoryName: string | null; hidden: boolean; featured: boolean; sortOrder: number; boxItem: number; sku: string | null; barcode?: string | null; note?: string | null; measure?: string | null; finalPrice?: number; discountPercent?: number; roundStep?: number; roundMode?: string }
+interface CF { id: string; name: string; value: string }
+interface P { id: number; bitoId: string; name: string; image: string | null; images?: (string | null)[]; price: number; oldPrice?: number | null; stock: number; trackStock?: boolean; categoryId: string | null; categoryName: string | null; hidden: boolean; featured: boolean; sortOrder: number; boxItem: number; sku: string | null; barcode?: string | null; note?: string | null; measure?: string | null; customFields?: CF[]; finalPrice?: number; discountPercent?: number; roundStep?: number; roundMode?: string }
 interface C { id: number; bitoId: string; name: string; parentId: string | null; image: string | null; hidden: boolean; sortOrder: number; itemCount: number }
 interface BannerRow { id: number; image: string; link: string | null; active: boolean; productIds?: number[] }
 interface Data { products: P[]; categories: C[]; uzs?: boolean; sync: { running: boolean; last: { at: string; ok: boolean; message: string } | null } }
@@ -276,30 +277,70 @@ export function CatalogPage() {
   );
 }
 
+function newFieldId(): string { return "f" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+
 /** Mahsulot qo'shish/tahrirlash */
 function ProductEditor({ initial, cats, onClose, onSaved }: { initial: Partial<P>; cats: C[]; onClose: () => void; onSaved: () => void }) {
   const toast = useToast((s) => s.show);
+  const initImages = (((initial.images || []).filter(Boolean) as string[]).length ? (initial.images!.filter(Boolean) as string[]) : (initial.image ? [initial.image] : []));
   const [f, setF] = useState({
-    name: initial.name || "", price: initial.price ?? 0, stock: initial.stock ?? 0,
-    categoryCode: initial.categoryId || "", sku: initial.sku || "", measure: initial.measure || "",
-    note: initial.note || "", discountPercent: initial.discountPercent ?? 0, image: initial.image || "",
-    hidden: initial.hidden ?? false, featured: initial.featured ?? false,
+    name: initial.name || "",
+    price: String(initial.price ?? ""),
+    oldPrice: initial.oldPrice != null ? String(initial.oldPrice) : "",
+    categoryCode: initial.categoryId || "",
+    note: initial.note || "",
+    images: initImages as string[],
+    trackStock: initial.trackStock ?? false,
+    stock: String(initial.stock ?? ""),
+    customFields: (initial.customFields || []) as CF[],
   });
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [localCats, setLocalCats] = useState<C[]>(cats);
+  const [addingCat, setAddingCat] = useState(false);
+  const [newCat, setNewCat] = useState("");
   const set = (k: keyof typeof f, v: unknown) => setF((d) => ({ ...d, [k]: v }));
-  const pickImage = async (file: File) => {
+
+  const pickImages = async (files: FileList) => {
     setUploading(true);
-    try { const path = await api.upload(file); set("image", path); } catch (e) { toast((e as Error).message, "err"); } finally { setUploading(false); }
+    try {
+      const paths: string[] = [];
+      for (const file of Array.from(files)) { const p = await api.upload(file); paths.push(p); }
+      setF((d) => ({ ...d, images: [...d.images, ...paths] }));
+    } catch (e) { toast((e as Error).message, "err"); } finally { setUploading(false); }
   };
+  const makePrimary = (i: number) => setF((d) => { const imgs = [...d.images]; const [x] = imgs.splice(i, 1); return { ...d, images: [x, ...imgs] }; });
+  const removeImage = (i: number) => setF((d) => ({ ...d, images: d.images.filter((_, j) => j !== i) }));
+
+  const addCategory = async () => {
+    const name = newCat.trim();
+    if (!name) return;
+    try {
+      const r = await api.post<{ code: string }>("/catalog/categories/create", { name });
+      const added: C = { id: Date.now(), bitoId: r.code, name, parentId: null, image: null, hidden: false, sortOrder: 0, itemCount: 0 };
+      setLocalCats((c) => [...c, added]);
+      set("categoryCode", r.code);
+      setNewCat(""); setAddingCat(false);
+    } catch (e) { toast((e as Error).message, "err"); }
+  };
+
+  const addField = () => setF((d) => ({ ...d, customFields: [...d.customFields, { id: newFieldId(), name: "", value: "" }] }));
+  const setField = (i: number, k: "name" | "value", v: string) => setF((d) => ({ ...d, customFields: d.customFields.map((c, j) => j === i ? { ...c, [k]: v } : c) }));
+  const removeField = (i: number) => setF((d) => ({ ...d, customFields: d.customFields.filter((_, j) => j !== i) }));
+
   const save = async () => {
     if (!f.name.trim()) { toast("Nomi kiritilmagan", "err"); return; }
+    if (!(Number(f.price) > 0)) { toast("Narxi kiritilmagan", "err"); return; }
+    if (!f.images.length) { toast("Kamida bitta rasm qo'shing", "err"); return; }
+    const oldP = f.oldPrice.trim() ? Number(f.oldPrice) : null;
+    if (oldP != null && !(oldP > Number(f.price))) { toast("Eski narx yangi narxdan katta bo'lishi kerak", "err"); return; }
     setSaving(true);
     const body = {
-      name: f.name.trim(), price: Number(f.price) || 0, stock: Number(f.stock) || 0,
-      categoryCode: f.categoryCode || null, sku: f.sku || null, measure: f.measure || null,
-      note: f.note || null, discountPercent: Number(f.discountPercent) || 0, image: f.image || null,
-      hidden: f.hidden, featured: f.featured,
+      name: f.name.trim(), price: Number(f.price) || 0, oldPrice: oldP,
+      categoryCode: f.categoryCode || null, note: f.note || null,
+      image: f.images[0] || null, images: f.images,
+      trackStock: f.trackStock, stock: f.trackStock ? (Number(f.stock) || 0) : 0,
+      customFields: f.customFields.filter((c) => c.name.trim()).map((c) => ({ id: c.id, name: c.name.trim(), value: c.value })),
     };
     try {
       if (initial.id) await api.put(`/catalog/products/${initial.id}/full`, body);
@@ -308,38 +349,81 @@ function ProductEditor({ initial, cats, onClose, onSaved }: { initial: Partial<P
       onSaved();
     } catch (e) { toast((e as Error).message, "err"); } finally { setSaving(false); }
   };
+
   return (
     <Modal open onClose={onClose} title={initial.id ? "Mahsulotni tahrirlash" : "Yangi mahsulot"}>
       <div className="space-y-3">
         <div><label className="label">Nomi *</label><input className="input" value={f.name} onChange={(e) => set("name", e.target.value)} autoFocus /></div>
         <div className="grid grid-cols-2 gap-3">
-          <div><label className="label">Narxi</label><input type="number" className="input" value={f.price} onChange={(e) => set("price", e.target.value)} /></div>
-          <div><label className="label">Qoldiq</label><input type="number" className="input" value={f.stock} onChange={(e) => set("stock", e.target.value)} /></div>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div><label className="label">Kategoriya</label>
-            <select className="input" value={f.categoryCode} onChange={(e) => set("categoryCode", e.target.value)}>
-              <option value="">— yo'q —</option>{cats.map((c) => <option key={c.bitoId} value={c.bitoId}>{c.name}</option>)}
-            </select></div>
-          <div><label className="label">Chegirma (%)</label><input type="number" min={0} max={99} className="input" value={f.discountPercent} onChange={(e) => set("discountPercent", e.target.value)} /></div>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div><label className="label">Artikul (SKU)</label><input className="input" value={f.sku} onChange={(e) => set("sku", e.target.value)} /></div>
-          <div><label className="label">O'lchov birligi</label><input className="input" placeholder="dona, kg..." value={f.measure} onChange={(e) => set("measure", e.target.value)} /></div>
-        </div>
-        <div><label className="label">Izoh</label><textarea className="input" rows={2} value={f.note} onChange={(e) => set("note", e.target.value)} /></div>
-        <div>
-          <label className="label">Rasm</label>
-          <div className="flex items-center gap-3">
-            {f.image ? <img src={f.image} className="w-16 h-16 rounded-lg object-cover bg-slate-100" /> : <div className="w-16 h-16 rounded-lg bg-slate-100 flex items-center justify-center"><ImageIcon size={20} className="text-slate-300" /></div>}
-            <label className="btn btn-ghost cursor-pointer">{uploading ? "Yuklanmoqda…" : "Rasm tanlash"}<input type="file" accept="image/*" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) void pickImage(file); }} /></label>
-            {f.image && <button className="btn btn-ghost text-rose-600" onClick={() => set("image", "")}>Olib tashlash</button>}
+          <div><label className="label">Narxi *</label><input type="number" className="input" value={f.price} onChange={(e) => set("price", e.target.value)} /></div>
+          <div>
+            <label className="label flex items-center gap-1">Eski narxi
+              <span className="text-slate-400 cursor-help" title="Kiritilsa, mahsulot kartochkasida eski narx ustidan chizilgan holda — yangi narx chegirma sifatida ko'rinadi."><Info size={13} /></span>
+            </label>
+            <input type="number" className="input" placeholder="ixtiyoriy" value={f.oldPrice} onChange={(e) => set("oldPrice", e.target.value)} />
           </div>
         </div>
-        <div className="flex gap-4">
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.featured} onChange={(e) => set("featured", e.target.checked)} /> Tavsiya etilgan</label>
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.hidden} onChange={(e) => set("hidden", e.target.checked)} /> Yashirin</label>
+        <div>
+          <label className="label">Kategoriya</label>
+          {addingCat ? (
+            <div className="flex gap-2">
+              <input className="input" placeholder="Yangi kategoriya nomi" value={newCat} autoFocus onChange={(e) => setNewCat(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void addCategory(); }} />
+              <button className="btn btn-primary" onClick={() => { void addCategory(); }}>Qo'shish</button>
+              <button className="btn btn-ghost" onClick={() => { setAddingCat(false); setNewCat(""); }}><X size={16} /></button>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <select className="input flex-1" value={f.categoryCode} onChange={(e) => set("categoryCode", e.target.value)}>
+                <option value="">— yo'q —</option>{localCats.map((c) => <option key={c.bitoId} value={c.bitoId}>{c.name}</option>)}
+              </select>
+              <button className="btn btn-ghost" title="Yangi kategoriya" onClick={() => setAddingCat(true)}><Plus size={16} /></button>
+            </div>
+          )}
         </div>
+        <div><label className="label">Mahsulot haqida</label><textarea className="input" rows={2} placeholder="ixtiyoriy" value={f.note} onChange={(e) => set("note", e.target.value)} /></div>
+
+        <div>
+          <label className="label">Rasm * <span className="text-slate-400 font-normal">(birinchisi asosiy; bir nechta bo'lsa Mini App'da aylanadi)</span></label>
+          <div className="flex flex-wrap items-center gap-2">
+            {f.images.map((img, i) => (
+              <div key={img + i} className="relative w-16 h-16 group">
+                <img src={img} className={`w-16 h-16 rounded-lg object-cover bg-slate-100 ${i === 0 ? "ring-2 ring-[var(--primary)]" : ""}`} />
+                {i === 0 && <span className="absolute -top-1.5 left-1/2 -translate-x-1/2 text-[9px] bg-[var(--primary)] text-white px-1 rounded">Asosiy</span>}
+                <button className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-rose-500 text-white flex items-center justify-center" onClick={() => removeImage(i)}><X size={11} /></button>
+                {i !== 0 && <button className="absolute bottom-0.5 left-1/2 -translate-x-1/2 text-[9px] bg-black/60 text-white px-1 rounded opacity-0 group-hover:opacity-100" onClick={() => makePrimary(i)}>Asosiy</button>}
+              </div>
+            ))}
+            <label className="w-16 h-16 rounded-lg border-2 border-dashed border-slate-300 flex items-center justify-center cursor-pointer text-slate-400 hover:border-[var(--primary)]">
+              {uploading ? "…" : <Plus size={20} />}
+              <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => { const fs = e.target.files; if (fs?.length) void pickImages(fs); }} />
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between">
+            <label className="label mb-0">Qo'shimcha maydon</label>
+            <button className="btn btn-ghost !py-1 !px-2 text-xs" onClick={addField}><Plus size={14} /> Qo'shimcha maydon</button>
+          </div>
+          {f.customFields.map((cf, i) => (
+            <div key={cf.id} className="flex gap-2 mt-2">
+              <input className="input flex-1" placeholder="Nomi (masalan: Brend)" value={cf.name} onChange={(e) => setField(i, "name", e.target.value)} />
+              <input className="input flex-1" placeholder="Qiymati (masalan: Nike)" value={cf.value} onChange={(e) => setField(i, "value", e.target.value)} />
+              <button className="w-9 rounded-lg flex items-center justify-center text-rose-500 hover:bg-rose-50 shrink-0" onClick={() => removeField(i)}><Trash2 size={15} /></button>
+            </div>
+          ))}
+        </div>
+
+        <div className="rounded-xl bg-slate-50 p-3">
+          <label className="flex items-center gap-2 text-sm font-medium">
+            <Toggle value={f.trackStock} onChange={(v) => set("trackStock", v)} /> Qoldiq hisobini yuritish
+          </label>
+          {f.trackStock && (
+            <div className="mt-2"><input type="number" className="input max-w-[160px]" placeholder="Qoldiq miqdori" value={f.stock} onChange={(e) => set("stock", e.target.value)} /></div>
+          )}
+          <div className="help mt-1">Yoqilsa: buyurtmalarda qoldiq ayriladi, tugasa Mini App'da «sotuvda yo'q» bo'ladi. O'chiq bo'lsa — cheksiz.</div>
+        </div>
+
         <div className="flex justify-end gap-2 pt-1"><button className="btn btn-ghost" onClick={onClose}>Bekor</button><button className="btn btn-primary" disabled={saving} onClick={() => { void save(); }}>{saving ? "Saqlanmoqda…" : "Saqlash"}</button></div>
       </div>
     </Modal>

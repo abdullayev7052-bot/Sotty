@@ -168,7 +168,9 @@ export function ProductSheet({ product: opened, onClose, onWaitlist }: { product
             <div className="text-2xl font-extrabold mt-1 flex items-baseline gap-2 flex-wrap" style={{ color: "var(--primary)" }}>
               {f.price(eff?.price || 0)}
               {needsVariant && fromLabel ? <span className="text-sm font-semibold text-slate-400">{fromLabel}</span> : null}
-              {eff?.discountPercent && eff?.basePrice ? <><span className="text-base font-medium text-slate-400 line-through">{f.price(eff.basePrice)}</span><span className="text-xs font-bold px-2 py-0.5 rounded-full text-white" style={{ background: "var(--accent)" }}>-{eff.discountPercent}%</span></> : null}</div>
+              {!current && product.oldPrice && product.oldPrice > (eff?.price || 0)
+                ? <><span className="text-base font-medium text-slate-400 line-through">{f.price(product.oldPrice)}</span><span className="text-xs font-bold px-2 py-0.5 rounded-full text-white" style={{ background: "var(--accent)" }}>-{Math.round((1 - (eff!.price) / product.oldPrice) * 100)}%</span></>
+                : eff?.discountPercent && eff?.basePrice ? <><span className="text-base font-medium text-slate-400 line-through">{f.price(eff.basePrice)}</span><span className="text-xs font-bold px-2 py-0.5 rounded-full text-white" style={{ background: "var(--accent)" }}>-{eff.discountPercent}%</span></> : null}</div>
             {product.measure && <div className="text-xs text-slate-500 mt-0.5">1 {product.measure}</div>}
 
             {/* Qo'shimcha ko'rsatkichlar: haftalik sotuv va savatchadagilar soni */}

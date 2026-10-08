@@ -46,7 +46,7 @@ function serializeProduct(p: Product, user: PUser, marks?: Marks) {
   });
   return {
     id: p.id, bitoId: p.bitoId, name: p.name, image: fileUrl(p.image), images: ((p.images as string[]) || []).map((x) => fileUrl(x)),
-    price: pr.price, basePrice: pr.basePrice, discountPercent: pr.discountPercent, stock: pr.stock, boxItem: p.boxItem, measure: p.measure, measureDecimals: p.measureDecimals, sku: p.sku,
+    price: pr.price, basePrice: pr.basePrice, discountPercent: pr.discountPercent, oldPrice: p.oldPrice && p.oldPrice > pr.price ? p.oldPrice : null, stock: p.trackStock ? pr.stock : 1_000_000, trackStock: p.trackStock, boxItem: p.boxItem, measure: p.measure, measureDecimals: p.measureDecimals, sku: p.sku,
     categoryId: p.categoryBitoId, categoryName: p.categoryName, note: p.note, customFields: p.customFields, featured: p.featured,
     inWaitlist: marks?.waitIds ? marks.waitIds.has(p.id) : false,
     favorite: marks?.favIds ? marks.favIds.has(p.id) : false,

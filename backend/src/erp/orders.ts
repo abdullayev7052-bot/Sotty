@@ -109,7 +109,7 @@ export async function createOrder(user: User, input: CreateOrderInput, lang: Lan
     if (!Number.isFinite(q) || q <= 0) throw new OrderValidationError("Miqdor noto'g'ri", "qty");
     if (q > s.catalog.maxQtyPerItem) throw new OrderValidationError("Miqdor juda katta", "qty");
     const pr = priceFor(p, user);
-    if (s.catalog.checkStockOnCheckout && !s.catalog.allowOrderOutOfStock && q > pr.stock) {
+    if (p.trackStock && s.catalog.checkStockOnCheckout && !s.catalog.allowOrderOutOfStock && q > pr.stock) {
       throw new OrderValidationError(fill(lt(c.errorStock as never, lang), { product: p.name, stock: qty(pr.stock) }), "stock");
     }
     snapshot.push({ productId: p.id, bitoId: p.bitoId, name: p.name, price: pr.price, basePrice: pr.basePrice, qty: q, boxCount: it.boxCount || 0, boxItem: p.boxItem, measure: p.measure, image: p.image });

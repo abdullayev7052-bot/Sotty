@@ -56,11 +56,15 @@ model Product {
   image          String?
   images         Json     @default("[]")
   price          Float    @default(0)
+  /// Eski narx (ixtiyoriy) — kiritilsa kartochkada eski/yangi narx (chegirma) sifatida ko'rinadi
+  oldPrice       Float?
   /// Tan narx (oxirgi xarid narxi) — foyda hisobi uchun
   costPrice      Float    @default(0)
   priceId        String?
   currencyId     String?
   stock          Float    @default(0)
+  /// Qoldiq hisobini yuritish — yoqilsa buyurtmalarda qoldiq ayriladi/cheklanadi; o'chiq bo'lsa cheksiz
+  trackStock     Boolean  @default(false)
   /// Har bir do'kon (tashkilot konteksti) bo'yicha narx/qoldiq: { main: {price, stock, available}, s2: {...} }
   stores         Json     @default("{}")
   /// Barcha sinxronlangan narx ro'yxatlari: { <priceId>: amount }

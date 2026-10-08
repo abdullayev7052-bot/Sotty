@@ -96,7 +96,9 @@ adminRouter.get("/erp/options", async (_req, res) => {
 const productBody = z.object({
   name: z.string().trim().min(1).max(200),
   price: z.number().min(0).optional(),
+  oldPrice: z.number().min(0).nullable().optional(),
   stock: z.number().min(0).optional(),
+  trackStock: z.boolean().optional(),
   image: z.string().max(400).nullable().optional(),
   images: z.array(z.string().max(400)).max(12).optional(),
   sku: z.string().max(80).nullable().optional(),
@@ -128,7 +130,7 @@ adminRouter.post("/catalog/products/create", async (req, res) => {
   const p = await prisma.product.create({ data: {
     bitoId: newCode("p_"), name: b.name,
     searchKey: buildSearchKey(b.name, b.sku, b.barcode, catName, ...(b.customFields || []).map((c) => c.value)),
-    image: images[0] || null, images, price: b.price || 0, stock: b.stock || 0,
+    image: images[0] || null, images, price: b.price || 0, oldPrice: b.oldPrice ?? null, stock: b.stock || 0, trackStock: b.trackStock ?? false,
     stores: { main: { price: b.price || 0, stock: b.stock || 0, available: true } },
     sku: b.sku || null, barcode: b.barcode || null, note: b.note || null, measure: b.measure || null, boxItem: b.boxItem || 0,
     categoryBitoId: b.categoryCode || null, categoryName: catName,
@@ -153,6 +155,8 @@ adminRouter.put("/catalog/products/:id/full", async (req, res) => {
   if (b.note !== undefined) data.note = b.note || null;
   if (b.measure !== undefined) data.measure = b.measure || null;
   if (b.boxItem !== undefined) data.boxItem = b.boxItem;
+  if (b.oldPrice !== undefined) data.oldPrice = b.oldPrice;
+  if (b.trackStock !== undefined) data.trackStock = b.trackStock;
   if (b.discountPercent !== undefined) data.discountPercent = b.discountPercent;
   if (b.hidden !== undefined) data.hidden = b.hidden;
   if (b.featured !== undefined) data.featured = b.featured;
@@ -527,7 +531,7 @@ adminRouter.get("/catalog", async (_req, res) => {
     prisma.category.findMany({ where: { isDeleted: false }, orderBy: { sortOrder: "asc" } }),
   ]);
   res.json({
-    products: products.map((p) => ({ id: p.id, bitoId: p.bitoId, name: p.name, image: fileUrl(p.image), images: ((p.images as string[]) || []).map((x) => fileUrl(x)).filter(Boolean), price: p.price, finalPrice: priceFor(p, { storeId: "main", bitoCustomerId: null }).price, discountPercent: p.discountPercent, roundStep: p.roundStep, roundMode: p.roundMode, stock: p.stock, categoryId: p.categoryBitoId, categoryName: p.categoryName, hidden: p.hidden, featured: p.featured, sortOrder: p.sortOrder, boxItem: p.boxItem, sku: p.sku, barcode: p.barcode, note: p.note, measure: p.measure, customFields: p.customFields })),
+    products: products.map((p) => ({ id: p.id, bitoId: p.bitoId, name: p.name, image: fileUrl(p.image), images: ((p.images as string[]) || []).map((x) => fileUrl(x)).filter(Boolean), price: p.price, oldPrice: p.oldPrice, finalPrice: priceFor(p, { storeId: "main", bitoCustomerId: null }).price, discountPercent: p.discountPercent, roundStep: p.roundStep, roundMode: p.roundMode, stock: p.stock, trackStock: p.trackStock, categoryId: p.categoryBitoId, categoryName: p.categoryName, hidden: p.hidden, featured: p.featured, sortOrder: p.sortOrder, boxItem: p.boxItem, sku: p.sku, barcode: p.barcode, note: p.note, measure: p.measure, customFields: p.customFields })),
     uzs: storeIsUzs("main"),
     categories: categories.map((c) => ({ id: c.id, bitoId: c.bitoId, name: c.name, parentId: c.parentId, image: fileUrl(c.image), hidden: c.hidden, sortOrder: c.sortOrder, itemCount: c.itemCount })),
     sync: getSyncStatus(),
