@@ -17,6 +17,7 @@ export function useSettings() {
 const PART_TITLES: Record<string, { title: string; description: string }> = {
   "checkout/cart": { title: "Savatcha", description: "Mini App savatchasi: matnlar va xatti-harakati" },
   "checkout/order": { title: "Buyurtma", description: "Yetkazib berish, olib ketish, xarita va rasmiylashtirish sozlamalari" },
+  "design/home": { title: "Bosh sahifa", description: "Logo va bosh sahifa bloklarining ko'rinishi, tartibi va nomi" },
 };
 export function SettingsPage() {
   const { section = "general", part } = useParams();

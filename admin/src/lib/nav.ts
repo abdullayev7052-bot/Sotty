@@ -37,6 +37,7 @@ export const NAV: NavSection[] = [
   { key: "settings", title: "settings", items: [
     { key: "general", label: "general", icon: "settings", to: "/settings/general", keywords: ["do'kon nomi", "tillar", "valyuta", "parol", "aloqa"] },
     { key: "miniapp", label: "miniapp", icon: "smartphone", children: [
+      { key: "homePage", label: "homePage", icon: "house", to: "/settings/design/home", keywords: ["bosh sahifa", "logo", "bloklar", "tartib", "storis", "banner", "главная"] },
       { key: "design", label: "design", icon: "palette", to: "/settings/design", keywords: ["rang", "logo", "splash", "animatsiya", "tungi rejim", "дизайн"] },
       { key: "catalogSettings", label: "catalogSettings", icon: "layout-grid", to: "/settings/catalog", keywords: ["qoldiq", "qidiruv", "ustunlar", "quti", "каталог"] },
       { key: "cart", label: "cart", icon: "shopping-cart", to: "/settings/checkout/cart", keywords: ["savatcha", "savat", "tozalash", "корзина"] },
@@ -58,6 +59,7 @@ export const NAV: NavSection[] = [
 export function settingsRoute(section: string, part?: string): string {
   if (section === "general" && part === "bot") return "/integration/bot";
   if (section === "checkout") return `/settings/checkout/${part || "order"}`;
+  if (section === "design" && part === "home") return "/settings/design/home";
   return `/settings/${section}`;
 }
 

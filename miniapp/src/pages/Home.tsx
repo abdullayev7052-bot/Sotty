@@ -2,7 +2,7 @@ import { useMemo, useState, useRef, useEffect } from "react";
 import { motion } from "motion/react";
 import { useNavigate } from "react-router-dom";
 import { ArrowRight, ChevronRight } from "lucide-react";
-import { useApp, useT } from "../store/app.ts";
+import { useApp, useT, lt } from "../store/app.ts";
 import { Header } from "../components/Header.tsx";
 import { Stories } from "../components/Stories.tsx";
 import { BannerCarousel } from "../components/BannerCarousel.tsx";
@@ -10,11 +10,19 @@ import { ProductCard } from "../components/ProductCard.tsx";
 import { ProductSheet } from "../components/ProductSheet.tsx";
 import { Page, Img, useToast } from "../components/ui.tsx";
 import { useWaitlist, withWait } from "../store/waitlist.ts";
-import type { HomeBlock, Product } from "../lib/api.ts";
+import type { HomeBlock, Product, LText } from "../lib/api.ts";
 import { haptic } from "../lib/telegram.ts";
 
+interface HomeRow { key: string; show?: boolean; title?: Partial<LText> }
+const DEF_SHOW: Record<string, boolean> = { stories: true, banners: true, hero: true, featured: true, categories: true, new: false };
+const DEF_TITLE: Record<string, LText> = {
+  featured: { uz: "Tavsiya etamiz", ru: "Рекомендуем", en: "Recommended" },
+  categories: { uz: "Kategoriyalar", ru: "Категории", en: "Categories" },
+  new: { uz: "Yangi kelganlar", ru: "Новинки", en: "New arrivals" },
+};
+
 export function Home() {
-  const { t, v } = useT();
+  const { t, v, lang } = useT();
   const data = useApp((s) => s.data)!;
   const nav = useNavigate();
   const [open, setOpen] = useState<Product | null>(null);
@@ -26,27 +34,31 @@ export function Home() {
     if (open && open.id === p.id) setOpen({ ...open, inWaitlist: next });
   };
   const topCats = data.categories.filter((c) => !c.parentId);
-  const showFeatured = v<boolean>("design", "featuredShow", true) && data.featured.length > 0;
-  const showNew = v<boolean>("design", "newShow", false) && data.newest.length > 0;
-  const showCats = v<boolean>("design", "categoriesShow", true) && topCats.length > 0;
   const blocks = data.blocks || [];
 
-  // Bosh sahifa tartibi (admin panelda sozlanadi); bo'sh bo'lsa — standart tartib
-  const order = useMemo(() => {
-    const cfg = (v<{ key: string; show?: boolean }[]>("design", "homeOrder", []) || []).filter((r) => r && r.key);
-    const defaults = ["stories", "banners", "hero", "featured", "categories", "new", ...blocks.map((b) => b.key)];
-    const rows = cfg.length ? cfg.filter((r) => r.show !== false).map((r) => r.key) : defaults;
-    for (const k of defaults) if (!rows.includes(k) && !cfg.some((r) => r.key === k)) rows.push(k);
-    return rows;
+  // Bosh sahifa bloklari: ko'rinishi (show), tartibi va nomi (title) admin paneldan boshqariladi
+  const rows = useMemo(() => {
+    const builtin = ["stories", "banners", "hero", "featured", "categories", "new"];
+    const allKeys = [...builtin, ...blocks.map((b) => b.key)];
+    const cfg = (v<HomeRow[]>("design", "homeOrder", []) || []).filter((r) => r && r.key && allKeys.includes(r.key));
+    const have = new Set(cfg.map((r) => r.key));
+    const list = [...cfg];
+    for (const k of allKeys) if (!have.has(k)) list.push({ key: k });
+    return list;
   }, [v, blocks]);
 
-  const renderRow = (key: string) => {
-    if (key === "stories") return v<boolean>("design", "storiesShow", true) ? <Stories key="stories" stories={data.stories} /> : null;
-    if (key === "banners") return v<boolean>("design", "bannersShow", true) ? <BannerCarousel key="banners" banners={data.banners} /> : null;
-    if (key === "hero") return v<boolean>("design", "heroShow", true) ? hero : null;
-    if (key === "featured") return showFeatured ? featuredRow : null;
-    if (key === "categories") return showCats ? catsRow : null;
-    if (key === "new") return showNew ? newRow : null;
+  const rowShown = (r: HomeRow) => (r.show !== undefined ? r.show : DEF_SHOW[r.key] ?? true);
+  const titleOf = (r: HomeRow) => lt(r.title as LText | undefined, lang) || lt(DEF_TITLE[r.key], lang);
+
+  const renderRow = (r: HomeRow) => {
+    if (!rowShown(r)) return null;
+    const key = r.key;
+    if (key === "stories") return <Stories key="stories" stories={data.stories} />;
+    if (key === "banners") return <BannerCarousel key="banners" banners={data.banners} />;
+    if (key === "hero") return hero;
+    if (key === "featured") return data.featured.length > 0 ? featuredRow(titleOf(r)) : null;
+    if (key === "categories") return topCats.length > 0 ? catsRow(titleOf(r)) : null;
+    if (key === "new") return data.newest.length > 0 ? newRow(titleOf(r)) : null;
     const b = blocks.find((x) => x.key === key);
     return b ? <BlockRow key={b.key} b={b} onOpen={setOpen} onWaitlist={onWaitlist} overrides={wl.overrides} /> : null;
   };
@@ -66,8 +78,8 @@ export function Home() {
             </motion.button>
           </motion.div>
   );
-  const featuredRow = (
-    <Section title={t("design", "featuredTitle")} onMore={() => nav("/catalog")}>
+  const featuredRow = (title: string) => (
+    <Section title={title} onMore={() => nav("/catalog")}>
             <div className="flex gap-3 overflow-x-auto px-4 pb-2 hide-scroll items-stretch">
               {data.featured.map((p, i) => (
                 <div key={p.id} className="w-[46%] shrink-0"><ProductCard p={withWait(p, wl.overrides)} index={i} onOpen={setOpen} onWaitlist={onWaitlist} /></div>
@@ -75,8 +87,8 @@ export function Home() {
             </div>
           </Section>
   );
-  const catsRow = (
-    <Section title={t("design", "categoriesTitle")} onMore={() => nav("/catalog")}>
+  const catsRow = (title: string) => (
+    <Section title={title} onMore={() => nav("/catalog")}>
             <div className="grid grid-cols-2 gap-3 px-4">
               {topCats.slice(0, 8).map((c, i) => (
                 <motion.button key={c.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 * i }} whileTap={{ scale: 0.97 }}
@@ -88,8 +100,8 @@ export function Home() {
             </div>
           </Section>
   );
-  const newRow = (
-    <Section title={t("design", "newTitle")}>
+  const newRow = (title: string) => (
+    <Section title={title}>
             <div className="flex gap-3 overflow-x-auto px-4 pb-2 hide-scroll items-stretch">
               {data.newest.map((p, i) => (
                 <div key={p.id} className="w-[46%] shrink-0"><ProductCard p={withWait(p, wl.overrides)} index={i} onOpen={setOpen} onWaitlist={onWaitlist} /></div>
@@ -101,7 +113,7 @@ export function Home() {
   return (
     <Page>
       <Header />
-      {order.map((k) => <div key={k}>{renderRow(k)}</div>)}
+      {rows.map((r) => <div key={r.key}>{renderRow(r)}</div>)}
       <ProductSheet product={open ? withWait(open, wl.overrides) : null} onClose={() => setOpen(null)} onWaitlist={onWaitlist} />
     </Page>
   );

@@ -499,6 +499,7 @@ export const settingsSchema: SectionDef[] = [
       },
       {
         title: "Logo",
+        part: "home",
         fields: [
           { key: "logoShow", label: "Ko'rsatish", type: "boolean", default: true },
           { key: "logoImage", label: "Logo rasmi", type: "image", default: "" },
@@ -516,7 +517,6 @@ export const settingsSchema: SectionDef[] = [
       {
         title: "Storis",
         fields: [
-          { key: "storiesShow", label: "Ko'rsatish", type: "boolean", default: true },
           { key: "storiesSize", label: "Doira o'lchami (px)", type: "number", default: 66, min: 44, max: 100 },
           { key: "storiesRingColor", label: "Halqa rangi (ko'rilmagan)", type: "color", default: "#f97316" },
           { key: "storiesDefaultDuration", label: "Standart davomiylik (soniya)", type: "number", default: 5, min: 1, max: 180, help: "Har bir slaydga o'z davomiyligini berish mumkin; bu faqat ko'rsatilmaganda ishlaydi." },
@@ -527,7 +527,6 @@ export const settingsSchema: SectionDef[] = [
       {
         title: "Bannerlar",
         fields: [
-          { key: "bannersShow", label: "Ko'rsatish", type: "boolean", default: true },
           { key: "bannersInterval", label: "Avto-aylanish oralig'i (soniya)", type: "number", default: 4, min: 2, max: 30 },
           { key: "bannersRatio", label: "Rasm nisbati (o'lchami)", type: "select", default: "2.5", options: [
             { value: "2.5", label: "1200 × 480 (keng, tavsiya etiladi)" },
@@ -565,7 +564,6 @@ export const settingsSchema: SectionDef[] = [
       {
         title: "Asosiy vidjet",
         fields: [
-          { key: "heroShow", label: "Ko'rsatish", type: "boolean", default: true },
           { key: "heroTitle", label: "Sarlavha", type: "ltext", default: L("Yangi buyurtma berish", "Сделать новый заказ", "Place a new order") },
           { key: "heroSubtitle", label: "Izoh", type: "ltext", default: L("Katalogdan tanlang — biz yetkazib beramiz", "Выберите из каталога — мы доставим", "Choose from the catalog — we deliver") },
           { key: "heroButton", label: "Tugma matni", type: "ltext", default: L("Katalogga o'tish", "Перейти в каталог", "Open catalog") },
@@ -575,31 +573,11 @@ export const settingsSchema: SectionDef[] = [
         ],
       },
       {
-        title: "Bosh sahifadagi bloklar — tartibi",
-        description: "Bloklar qaysi ketma-ketlikda turishini shu yerda belgilaysiz. Har bir blokni ko'rsatish yoki yashirish esa o'sha blokning o'z bo'limida (Storis, Bannerlar, Hero, pastdagi bloklar) yoki Nazorat → Katalog boshqaruvi → Bosh sahifa bloklari da.",
+        title: "Bosh sahifa bloklari",
+        part: "home",
+        description: "Har bir blokning ko'rinishi (ko'z), tartibi (strelkalar) va nomi (qalamcha) shu yerda boshqariladi. Yangi bloklar Nazorat → Katalog → Bosh sahifa bloklari da yaratiladi.",
         fields: [
-          { key: "homeOrder", label: "Tartib", type: "homeLayout", default: [] },
-        ],
-      },
-      {
-        title: "«Tavsiya etamiz» bloki",
-        fields: [
-          { key: "featuredShow", label: "Ko'rsatish", type: "boolean", default: true },
-          { key: "featuredTitle", label: "Sarlavha", type: "ltext", default: L("Tavsiya etamiz", "Рекомендуем", "Recommended") },
-        ],
-      },
-      {
-        title: "«Kategoriyalar» bloki",
-        fields: [
-          { key: "categoriesShow", label: "Ko'rsatish", type: "boolean", default: true },
-          { key: "categoriesTitle", label: "Sarlavha", type: "ltext", default: L("Kategoriyalar", "Категории", "Categories") },
-        ],
-      },
-      {
-        title: "«Yangi kelganlar» bloki",
-        fields: [
-          { key: "newShow", label: "Ko'rsatish", type: "boolean", default: false },
-          { key: "newTitle", label: "Sarlavha", type: "ltext", default: L("Yangi kelganlar", "Новинки", "New arrivals") },
+          { key: "homeOrder", label: "Bloklar", type: "homeLayout", default: [] },
         ],
       },
       {

@@ -26,6 +26,7 @@ const D = {
   payments: { uz: "To'lovlar", ru: "Платежи", en: "Payments" },
   general: { uz: "Umumiy", ru: "Общие", en: "General" },
   miniapp: { uz: "Mini App", ru: "Mini App", en: "Mini App" },
+  homePage: { uz: "Bosh sahifa", ru: "Главная", en: "Home page" },
   design: { uz: "Dizayn", ru: "Дизайн", en: "Design" },
   catalogSettings: { uz: "Katalog", ru: "Каталог", en: "Catalog" },
   cart: { uz: "Savatcha", ru: "Корзина", en: "Cart" },

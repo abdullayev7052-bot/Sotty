@@ -12,8 +12,10 @@ import { qty as fq } from "../lib/format.ts";
 import { track } from "../lib/analytics.ts";
 import { useFavorites } from "../store/favorites.ts";
 
+const CAT_LABEL: Record<string, string> = { uz: "Kategoriya", ru: "Категория", en: "Category" };
+
 export function ProductSheet({ product: opened, onClose, onWaitlist }: { product: Product | null; onClose: () => void; onWaitlist: (p: Product) => void }) {
-  const { t, v } = useT();
+  const { t, v, lang } = useT();
   const f = useCatalogFmt();
   const add = useCart((s) => s.add);
   const toast = useToast((s) => s.show);
@@ -81,9 +83,9 @@ export function ProductSheet({ product: opened, onClose, onWaitlist }: { product
     const b: { key: string; label: string; value: string }[] = [];
     for (const cf of product.customFields || []) b.push({ key: cf.id || cf.name, label: cf.name, value: cf.value });
     if (product.note) b.push({ key: "note", label: "", value: product.note });
-    if (product.categoryName) b.push({ key: "category", label: t("design", "categoriesTitle"), value: product.categoryName });
+    if (product.categoryName) b.push({ key: "category", label: CAT_LABEL[lang] || CAT_LABEL.uz, value: product.categoryName });
     return b;
-  }, [product, t]);
+  }, [product, lang]);
   const vImages = (current?.images?.filter(Boolean) as string[] | undefined) || (current?.image ? [current.image] : []);
   const images = (vImages.length ? vImages : (product?.images?.filter(Boolean) as string[] | undefined)) || [];
   useEffect(() => { setImg(0); }, [current?.id]);
