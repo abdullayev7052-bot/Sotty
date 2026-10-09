@@ -582,7 +582,6 @@ export const settingsSchema: SectionDef[] = [
       },
       {
         title: "Pastki navigatsiya",
-        description: "Bosh sahifa / Katalog / Savatcha / Profil paneli",
         fields: [
           { key: "navStyle", label: "Uslubi", type: "select", default: "glass", options: [
             { value: "solid", label: "To'q (oddiy)" },
@@ -595,7 +594,6 @@ export const settingsSchema: SectionDef[] = [
           { key: "navOpacity", label: "Fon shaffofligi (%)", type: "number", default: 85, min: 40, max: 100, step: 5 },
           { key: "navHeight", label: "Balandligi (px)", type: "number", default: 64, min: 52, max: 88 },
           { key: "navIconSize", label: "Belgilar o'lchami (px)", type: "number", default: 22, min: 16, max: 30 },
-          { key: "navLabels", label: "Belgilar ostida yozuvlar", type: "boolean", default: true },
           { key: "navActive", label: "Tanlangan bo'lim ko'rinishi", type: "select", default: "pill", options: [
             { value: "pill", label: "Yumaloq fon (pill)" }, { value: "dot", label: "Pastida nuqta" }, { value: "line", label: "Tepasida chiziq" }, { value: "plain", label: "Faqat rang" },
           ] },

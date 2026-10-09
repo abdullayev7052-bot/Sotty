@@ -16,7 +16,6 @@ export function BottomNav() {
     { to: "/profile", icon: User, label: t("design", "navProfile") },
   ];
   const activeStyle = v<string>("design", "navActive", "pill");
-  const labels = v<boolean>("design", "navLabels", true);
   const iconSize = v<number>("design", "navIconSize", 22);
   const floating = v<string>("design", "navStyle", "glass") === "floating";
   return (
@@ -44,7 +43,7 @@ export function BottomNav() {
                   {it.badge ? (it.badge > 99 ? "99+" : it.badge) : ""}
                 </motion.span>
               </div>
-              {labels && <span className={active ? "text-[var(--primary)]" : "text-slate-400"}>{it.label}</span>}
+              {it.label && <span className={active ? "text-[var(--primary)]" : "text-slate-400"}>{it.label}</span>}
             </NavLink>
           );
         })}
