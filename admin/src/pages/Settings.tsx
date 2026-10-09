@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Save } from "lucide-react";
-import { api, type Options, type SectionDef, type Settings } from "../lib/api.ts";
+import { api, type Options, type SectionDef, type Settings, type GroupDef } from "../lib/api.ts";
 import { Field } from "../components/Field.tsx";
 import { PageTitle, Spinner, useToast } from "../components/ui.tsx";
 
@@ -21,8 +21,109 @@ const PART_TITLES: Record<string, { title: string; description: string }> = {
 };
 export function SettingsPage() {
   const { section = "general", part } = useParams();
+  // Dizayn bosh sahifasi — boshqa bo'limlardagi matn/ko'rinish guruhlarini ham jamlaydi
+  if (section === "design" && !part) return <DesignHubPage />;
   const pt = part ? PART_TITLES[`${section}/${part}`] : undefined;
   return <SettingsForm section={section} part={part} title={pt?.title} description={pt?.description} />;
+}
+
+/** Dizayn sahifasi: design bo'limining o'z guruhlari + barcha bo'limlardan page:"design" guruhlari.
+ *  Har bir guruh o'z bo'limiga saqlanadi (storage kalitlari ko'chmaydi). */
+function DesignHubPage() {
+  const schema = useSchema();
+  const settings = useSettings();
+  const qc = useQueryClient();
+  const toast = useToast((s) => s.show);
+  const [params] = useSearchParams();
+  const focus = params.get("focus");
+  const [draft, setDraft] = useState<Record<string, Record<string, unknown>>>({});
+  const [dirty, setDirty] = useState<Set<string>>(new Set());
+  const [saving, setSaving] = useState(false);
+
+  // Jamlangan guruhlar: {section, group}. Design o'z guruhlari avval, keyin ko'chirilganlar.
+  const collected = useMemo(() => {
+    const out: { section: string; group: GroupDef }[] = [];
+    for (const sec of schema.data || []) {
+      for (const g of sec.groups) {
+        if (sec.key === "design" && !g.part && !g.page) out.push({ section: "design", group: g });
+        else if (g.page === "design") out.push({ section: sec.key, group: g });
+      }
+    }
+    return out;
+  }, [schema.data]);
+
+  const sections = useMemo(() => [...new Set(collected.map((c) => c.section))], [collected]);
+  useEffect(() => {
+    if (!settings.data) return;
+    const d: Record<string, Record<string, unknown>> = {};
+    for (const s of sections) d[s] = { ...(settings.data[s] || {}) };
+    setDraft(d); setDirty(new Set());
+  }, [settings.data, sections.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const needsOptions = useMemo(() => collected.some((c) => c.group.fields.some((f) => f.source)), [collected]);
+  const options = useQuery({ queryKey: ["erp-options"], queryFn: () => api.get<Options>("/erp/options"), enabled: needsOptions, staleTime: 60000 });
+
+  useEffect(() => {
+    if (!focus || settings.isLoading || schema.isLoading) return;
+    const id = focus.startsWith("group:") ? `group-${focus.slice(6)}` : `field-${focus}`;
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.classList.add("focus-flash");
+    const t = setTimeout(() => el.classList.remove("focus-flash"), 2500);
+    return () => clearTimeout(t);
+  }, [focus, settings.isLoading, schema.isLoading]);
+
+  const set = (section: string, k: string, v: unknown) => {
+    setDraft((d) => ({ ...d, [section]: { ...(d[section] || {}), [k]: v } }));
+    setDirty((s) => new Set(s).add(section));
+  };
+  const patchMany = (section: string, vals: Record<string, unknown>) => {
+    setDraft((d) => ({ ...d, [section]: { ...(d[section] || {}), ...vals } }));
+    setDirty((s) => new Set(s).add(section));
+  };
+  const shown = (section: string, f: { showIf?: string }) => !f.showIf || !!draft[section]?.[f.showIf];
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      let last: Settings | null = null;
+      for (const sec of dirty) { const r = await api.put<{ ok: boolean; settings: Settings }>(`/settings/${sec}`, draft[sec]); last = r.settings; }
+      if (last) qc.setQueryData(["settings"], last);
+      setDirty(new Set());
+      toast("Saqlandi ✅");
+      await qc.invalidateQueries({ queryKey: ["settings"] });
+    } catch (e) { toast((e as Error).message, "err"); } finally { setSaving(false); }
+  };
+
+  if (schema.isLoading || settings.isLoading) return <Spinner />;
+  const isDirty = dirty.size > 0;
+  const saveBtn = <button className="btn btn-primary" disabled={!isDirty || saving} onClick={() => { void save(); }}><Save size={16} /> {saving ? "Saqlanmoqda…" : "Saqlash"}</button>;
+  return (
+    <div className="max-w-4xl">
+      <PageTitle title="Dizayn" description="Mini App ko'rinishi va barcha bo'limlardagi matnlar" actions={saveBtn} />
+      <div className="space-y-4">
+        {collected.filter((c) => shown(c.section, c.group)).map(({ section, group: g }) => (
+          <div key={section + ":" + g.title} id={`group-${g.title}`} className="card p-5 rounded-2xl">
+            <div className="font-semibold mb-1">{g.title}</div>
+            {g.description && <div className="text-sm text-slate-500 mb-3">{g.description}</div>}
+            <div className="space-y-4 mt-3">
+              {g.fields.filter((f) => shown(section, f)).map((f) => (
+                <div key={f.key} id={`field-${f.key}`} className="rounded-xl -mx-2 px-2 py-1">
+                  <Field def={f} value={draft[section]?.[f.key]} onChange={(v) => set(section, f.key, v)} options={options.data || null} onPatch={(vals) => patchMany(section, vals)} />
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      {isDirty && (
+        <div className="sticky bottom-4 mt-4 flex justify-end">
+          <button className="btn btn-primary shadow-lg" disabled={saving} onClick={() => { void save(); }}><Save size={16} /> {saving ? "Saqlanmoqda…" : "O'zgarishlarni saqlash"}</button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 interface Props {
@@ -43,7 +144,8 @@ export function SettingsForm({ section, part, title, description, before }: Prop
   const [params] = useSearchParams();
   const focus = params.get("focus");
   const def = useMemo(() => schema.data?.find((s) => s.key === section), [schema.data, section]);
-  const groups = useMemo(() => (def?.groups || []).filter((g) => (part ? g.part === part : !g.part)), [def, part]);
+  // page bilan belgilangan guruhlar boshqa sahifaga (masalan Dizayn) ko'chadi — bu yerda ko'rsatilmaydi
+  const groups = useMemo(() => (def?.groups || []).filter((g) => (part ? g.part === part : !g.part) && !g.page), [def, part]);
   const [draft, setDraft] = useState<Record<string, unknown>>({});
   /** showIf: boshqa (boolean) maydon yoqilganda ko'rsatish */
   const shown = (f: { showIf?: string }) => !f.showIf || !!draft[f.showIf];

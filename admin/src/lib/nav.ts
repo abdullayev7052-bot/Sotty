@@ -84,7 +84,7 @@ export function buildSearchIndex(schema: SectionDef[] | undefined, t: (k: TKey |
     if (sec.key === "shop") continue; // "Do'kon" bo'limi admin paneldan olib tashlangan (ko'p do'kon — kelgusida)
     const secTitle = t(`sec.${sec.key}`, sec.title);
     for (const g of sec.groups) {
-      const to = settingsRoute(sec.key, g.part);
+      const to = g.page === "design" ? "/settings/design" : settingsRoute(sec.key, g.part);
       const path = routePath.get(to) || [t("settings"), secTitle];
       out.push({ id: `group:${sec.key}:${g.title}`, title: g.title, path, to: `${to}?focus=${encodeURIComponent("group:" + g.title)}`, kind: "field", text: [g.title, g.description || "", ...path, sec.title].join(" ").toLowerCase() });
       for (const f of g.fields) {

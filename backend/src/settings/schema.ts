@@ -50,6 +50,8 @@ export interface GroupDef {
   description?: string;
   /** Admin panelda bo'limning qaysi sahifasida ko'rsatiladi (masalan checkout: "cart" | "order"; general: "bot") */
   part?: string;
+  /** Guruhni boshqa admin sahifasiga ko'chirish (saqlash o'z bo'limida qoladi). Masalan "design" — Dizayn sahifasida chiqadi */
+  page?: string;
   /** Shu (boolean) maydon yoqilgan bo'lsagina butun guruh ko'rsatiladi */
   showIf?: string;
   fields: FieldDef[];
@@ -668,6 +670,7 @@ export const settingsSchema: SectionDef[] = [
       {
         title: "Mahsulot kartochkasi (ko'rinishi)",
         description: "Kartochkadagi matnlarning rangi va o'lchami",
+        page: "design",
         fields: [
           { key: "faceLabelShow", label: "Kartochka betidagi maydon nomi bilan ko'rsatilsin", type: "boolean", default: false, help: "O'chiq bo'lsa faqat qiymat ko'rinadi: «Shayx Muhammad Sodiq»" },
           { key: "faceColor", label: "Kartochka betidagi qo'shimcha matn rangi", type: "color", default: "#64748b" },
@@ -694,6 +697,12 @@ export const settingsSchema: SectionDef[] = [
         description: "Variant (atribut) bilan ochilgan mahsulotlar — masalan «Futbolka / Qora / S»",
         fields: [
           { key: "variantsEnabled", label: "Variantlarni bitta kartochka ostida ko'rsatish", type: "boolean", default: true },
+        ],
+      },
+      {
+        title: "Variant matnlari",
+        page: "design",
+        fields: [
           { key: "variantChooseLabel", label: "Tanlash sarlavhasi", type: "ltext", default: L("Variantni tanlang", "Выберите вариант", "Choose a variant") },
           { key: "variantPickHint", label: "Tanlanmaganda tugma matni", type: "ltext", default: L("Variantni tanlang", "Выберите вариант", "Select a variant") },
           { key: "variantOutLabel", label: "Variant tugagan bo'lsa", type: "ltext", default: L("tugagan", "нет в наличии", "out of stock") },
@@ -701,12 +710,18 @@ export const settingsSchema: SectionDef[] = [
         ],
       },
       {
-        title: "Tartib va ko'rinish",
+        title: "Ko'rinish",
+        fields: [
+          { key: "hideZeroPrice", label: "Narxi 0 bo'lgan mahsulotlarni yashirish", type: "boolean", default: true },
+          { key: "quickAddEnabled", label: "Kartochkada ➕ tezkor qo'shish", type: "boolean", default: true },
+        ],
+      },
+      {
+        title: "Katalog ko'rinishi va matnlari",
+        page: "design",
         fields: [
           { key: "columns", label: "Ustunlar soni", type: "number", default: 2, min: 1, max: 3 },
           { key: "showCategoryImages", label: "Kategoriya rasmlarini ko'rsatish", type: "boolean", default: true },
-          { key: "hideZeroPrice", label: "Narxi 0 bo'lgan mahsulotlarni yashirish", type: "boolean", default: true },
-          { key: "quickAddEnabled", label: "Kartochkada ➕ tezkor qo'shish", type: "boolean", default: true },
           { key: "placeholderImage", label: "Rasmi yo'q mahsulot uchun rasm", type: "image", default: "", help: "Qurilma xotirasidan yuklanadi. Rasmi bo'lmagan barcha mahsulotlarda shu rasm ko'rinadi." },
           { key: "placeholderName", label: "Rasm ustida mahsulot nomi yozilsin", type: "boolean", default: true },
           { key: "placeholderNameColor", label: "Nom rangi", type: "color", default: "#334155" },
@@ -724,11 +739,17 @@ export const settingsSchema: SectionDef[] = [
         ],
       },
       {
-        title: "Qidiruv",
+        title: "Qidiruv va filtr",
         fields: [
-          { key: "searchPlaceholder", label: "Qidiruv maydoni matni", type: "ltext", default: L("Mahsulot qidirish...", "Поиск товара...", "Search products...") },
           { key: "searchMinChars", label: "Minimal harflar soni", type: "number", default: 3, min: 1, max: 5 },
           { key: "filterMaxValues", label: "Har bir filtrda nechta qiymat ko'rinsin", type: "number", default: 12, min: 4, max: 40 },
+        ],
+      },
+      {
+        title: "Qidiruv va filtr matnlari",
+        page: "design",
+        fields: [
+          { key: "searchPlaceholder", label: "Qidiruv maydoni matni", type: "ltext", default: L("Mahsulot qidirish...", "Поиск товара...", "Search products...") },
           { key: "filterTitle", label: "Filtr oynasi sarlavhasi", type: "ltext", default: L("Filtr", "Фильтр", "Filter") },
           { key: "filterApply", label: "Qo'llash tugmasi", type: "ltext", default: L("Ko'rsatish", "Показать", "Show") },
           { key: "filterReset", label: "Tozalash tugmasi", type: "ltext", default: L("Tozalash", "Сбросить", "Reset") },
@@ -784,8 +805,17 @@ export const settingsSchema: SectionDef[] = [
         ],
       },
       {
-        title: "Savatcha matnlari va xatti-harakati",
+        title: "Savatcha xatti-harakati",
         part: "cart",
+        fields: [
+          { key: "confirmClear", label: "Tozalashdan oldin tasdiq so'rash", type: "boolean", default: true },
+          { key: "swipeDelete", label: "Mahsulotni chapga surib o'chirish", type: "boolean", default: true },
+          { key: "cartItemTap", label: "Savatchadagi mahsulotni bosganda tafsilotini ochish", type: "boolean", default: true },
+        ],
+      },
+      {
+        title: "Savatcha matnlari",
+        page: "design",
         fields: [
           { key: "cartTitle", label: "Savatcha sarlavhasi", type: "ltext", default: L("Savatcha", "Корзина", "Cart") },
           { key: "emptyCart", label: "Savatcha bo'sh", type: "ltext", default: L("Savatchangiz bo'sh", "Ваша корзина пуста", "Your cart is empty") },
@@ -797,19 +827,17 @@ export const settingsSchema: SectionDef[] = [
           { key: "deliveryFeeLabel", label: "Yetkazib berish (summa yonida)", type: "ltext", default: L("Yetkazib berish", "Доставка", "Delivery") },
           { key: "freeLabel", label: "Bepul", type: "ltext", default: L("Bepul", "Бесплатно", "Free") },
           { key: "clearCart", label: "Savatni tozalash", type: "ltext", default: L("Tozalash", "Очистить", "Clear") },
-          { key: "confirmClear", label: "Tozalashdan oldin tasdiq so'rash", type: "boolean", default: true },
           { key: "confirmClearTitle", label: "Tasdiq sarlavhasi", type: "ltext", default: L("Savatchani tozalash?", "Очистить корзину?", "Clear the cart?") },
           { key: "confirmClearText", label: "Tasdiq matni", type: "ltext", default: L("Barcha tanlangan mahsulotlar o'chib ketadi", "Все выбранные товары будут удалены", "All selected items will be removed") },
           { key: "yesLabel", label: "Ha", type: "ltext", default: L("Ha, tozalash", "Да, очистить", "Yes, clear") },
           { key: "noLabel", label: "Yo'q", type: "ltext", default: L("Yo'q", "Нет", "No") },
-          { key: "swipeDelete", label: "Mahsulotni chapga surib o'chirish", type: "boolean", default: true },
           { key: "deleteLabel", label: "O'chirish (surishda)", type: "ltext", default: L("O'chirish", "Удалить", "Delete") },
-          { key: "cartItemTap", label: "Savatchadagi mahsulotni bosganda tafsilotini ochish", type: "boolean", default: true },
         ],
       },
       {
         title: "Rasmiylashtirish matnlari",
         part: "order",
+        page: "design",
         fields: [
           { key: "confirmButton", label: "Tasdiqlash tugmasi", type: "ltext", default: L("Buyurtmani tasdiqlash", "Подтвердить заказ", "Confirm order") },
           { key: "checkoutTitle", label: "Rasmiylashtirish sarlavhasi", type: "ltext", default: L("Buyurtmani rasmiylashtirish", "Оформление заказа", "Checkout") },
@@ -839,6 +867,17 @@ export const settingsSchema: SectionDef[] = [
       {
         title: "Bloklar",
         fields: [
+          { key: "showBalance", label: "Balansni ko'rsatish", type: "boolean", default: true },
+          { key: "showPurchases", label: "Xaridlar tarixini ko'rsatish", type: "boolean", default: true },
+          { key: "showCard", label: "Sodiqlik kartasini ko'rsatish", type: "boolean", default: true },
+          { key: "showLanguage", label: "Til tanlashni ko'rsatish", type: "boolean", default: true },
+          { key: "showAddress", label: "Saqlangan manzilni ko'rsatish", type: "boolean", default: true },
+        ],
+      },
+      {
+        title: "Profil matnlari",
+        page: "design",
+        fields: [
           { key: "today", label: "«Bugun»", type: "ltext", default: L("Bugun", "Сегодня", "Today") },
           { key: "yesterday", label: "«Kecha»", type: "ltext", default: L("Kecha", "Вчера", "Yesterday") },
           { key: "detailNumber", label: "Tafsilot: raqami", type: "ltext", default: L("Buyurtma raqami", "Номер заказа", "Order number") },
@@ -850,16 +889,6 @@ export const settingsSchema: SectionDef[] = [
           { key: "orderDetailsTitle", label: "Buyurtma tafsilotlari sarlavhasi", type: "ltext", default: L("Buyurtma tafsilotlari", "Детали заказа", "Order details") },
           { key: "purchaseDetailsTitle", label: "Xarid tafsilotlari sarlavhasi", type: "ltext", default: L("Xarid tafsilotlari", "Детали покупки", "Purchase details") },
           { key: "pieceShort", label: "«dona» qisqartmasi", type: "ltext", default: L("dona", "шт", "pcs") },
-          { key: "showBalance", label: "Balansni ko'rsatish", type: "boolean", default: true },
-          { key: "showPurchases", label: "Xaridlar tarixini ko'rsatish", type: "boolean", default: true },
-          { key: "showCard", label: "Sodiqlik kartasini ko'rsatish", type: "boolean", default: true },
-          { key: "showLanguage", label: "Til tanlashni ko'rsatish", type: "boolean", default: true },
-          { key: "showAddress", label: "Saqlangan manzilni ko'rsatish", type: "boolean", default: true },
-        ],
-      },
-      {
-        title: "Matnlar",
-        fields: [
           { key: "title", label: "Sarlavha", type: "ltext", default: L("Profil", "Профиль", "Profile") },
           { key: "myOrders", label: "Mening buyurtmalarim", type: "ltext", default: L("📜 Mening buyurtmalarim", "📜 Мои заказы", "📜 My orders") },
           { key: "purchases", label: "Xaridlar tarixi", type: "ltext", default: L("🧾 Xaridlar tarixi", "🧾 История покупок", "🧾 Purchase history") },
