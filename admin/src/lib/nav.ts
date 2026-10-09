@@ -36,7 +36,6 @@ export const NAV: NavSection[] = [
   ] },
   { key: "settings", title: "settings", items: [
     { key: "general", label: "general", icon: "settings", to: "/settings/general", keywords: ["do'kon nomi", "tillar", "valyuta", "parol", "aloqa"] },
-    { key: "shop", label: "shop", icon: "store", to: "/settings/shop", keywords: ["do'kon", "do'kon nomi", "магазин", "store", "shop"] },
     { key: "miniapp", label: "miniapp", icon: "smartphone", children: [
       { key: "design", label: "design", icon: "palette", to: "/settings/design", keywords: ["rang", "logo", "splash", "animatsiya", "tungi rejim", "дизайн"] },
       { key: "catalogSettings", label: "catalogSettings", icon: "layout-grid", to: "/settings/catalog", keywords: ["qoldiq", "qidiruv", "ustunlar", "quti", "каталог"] },
@@ -80,6 +79,7 @@ export function buildSearchIndex(schema: SectionDef[] | undefined, t: (k: TKey |
   };
   for (const s of NAV) walk(s.items, s.title ? [t(s.title)] : []);
   for (const sec of schema || []) {
+    if (sec.key === "shop") continue; // "Do'kon" bo'limi admin paneldan olib tashlangan (ko'p do'kon — kelgusida)
     const secTitle = t(`sec.${sec.key}`, sec.title);
     for (const g of sec.groups) {
       const to = settingsRoute(sec.key, g.part);

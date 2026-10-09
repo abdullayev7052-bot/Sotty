@@ -123,8 +123,7 @@ export function Profile() {
               <span className={`relative w-11 h-6 rounded-full transition-colors ${theme === "dark" ? "bg-[var(--primary)]" : "bg-slate-300"}`}><span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${theme === "dark" ? "left-[22px]" : "left-0.5"}`} /></span>
             </button>
           )}
-            {v<boolean>("design", "userFontSize", true) && (
-              <div className="w-full flex items-center gap-3 px-4 py-3.5 border-t border-slate-100">
+            <div className="w-full flex items-center gap-3 px-4 py-3.5 border-t border-slate-100">
                 <span className="text-[var(--primary)]"><Type size={20} /></span>
                 <span className="flex-1 font-medium">{t("design", "userFontLabel")}</span>
                 <div className="flex gap-1.5">
@@ -135,7 +134,6 @@ export function Profile() {
                   ))}
                 </div>
               </div>
-            )}
           {(supportTg || supportPhone) && (
             <button onClick={() => openLink(supportTg ? `https://t.me/${supportTg.replace("@", "")}` : `tel:${supportPhone}`)} className="w-full flex items-center gap-3 px-4 py-3.5 border-t border-slate-100 text-left">
               <span className="text-[var(--primary)]"><LifeBuoy size={20} /></span><span className="flex-1 font-medium">{t("profile", "support")}</span><span className="text-sm text-slate-400">{supportTg ? `@${supportTg.replace("@", "")}` : supportPhone}</span>

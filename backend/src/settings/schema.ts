@@ -372,8 +372,7 @@ export const settingsSchema: SectionDef[] = [
     description: "Ranglar, logo, salomlashish, bloklar",
     groups: [
       {
-        title: "Tayyor uslublar (shablonlar)",
-        description: "Shablonni bosing — ranglar, shrift, fon va navigatsiya bir vaqtda to'ldiriladi, keyin xohlagan joyini o'zgartirasiz.",
+        title: "Tayyor uslublar",
         fields: [
           { key: "presetPicker", label: "Shablonni tanlang", type: "themePresets", default: "" },
         ],
@@ -397,8 +396,7 @@ export const settingsSchema: SectionDef[] = [
             { value: "600", label: "Yarim qalin" }, { value: "700", label: "Qalin" }, { value: "800", label: "Juda qalin" },
           ] },
           { key: "letterSpacing", label: "Harflar orasi (px)", type: "number", default: 0, min: -1, max: 2, step: 0.1 },
-          { key: "userFontSize", label: "Mijoz matn o'lchamini o'zi tanlay olsin", type: "boolean", default: true, help: "Profil bo'limida: kichik / o'rtacha / katta" },
-          { key: "userFontLabel", label: "Profildagi nomi", type: "ltext", default: L("Matn o'lchami", "Размер текста", "Text size") },
+          { key: "userFontLabel", label: "Profildagi «matn o'lchami» nomi", type: "ltext", default: L("Matn o'lchami", "Размер текста", "Text size") },
         ],
       },
       {
@@ -511,8 +509,8 @@ export const settingsSchema: SectionDef[] = [
           { key: "logoPosition", label: "Joylashuvi", type: "select", default: "right", options: [
             { value: "right", label: "O'ng tomonda" }, { value: "left", label: "Chap tomonda" },
           ] },
-          { key: "logoBgTransparent", label: "Logo foni shaffof (rangsiz)", type: "boolean", default: false, help: "Yoqilsa logo orqasi ilovaning o'z foni bilan bir xil bo'ladi — PNG shaffof logolar uchun" },
-          { key: "logoBg", label: "Logo foni (shaffof bo'lmasa)", type: "color", default: "#f1f5f9" },
+          { key: "logoBgTransparent", label: "Shaffof fon", type: "boolean", default: false, help: "Yoqilsa logo orqasi ilovaning o'z foni bilan bir xil bo'ladi — PNG shaffof logolar uchun" },
+          { key: "logoBg", label: "Logo foni", type: "color", default: "#f1f5f9" },
         ],
       },
       {
@@ -565,7 +563,7 @@ export const settingsSchema: SectionDef[] = [
         ],
       },
       {
-        title: "Asosiy vidjet (Hero)",
+        title: "Asosiy vidjet",
         fields: [
           { key: "heroShow", label: "Ko'rsatish", type: "boolean", default: true },
           { key: "heroTitle", label: "Sarlavha", type: "ltext", default: L("Yangi buyurtma berish", "Сделать новый заказ", "Place a new order") },
