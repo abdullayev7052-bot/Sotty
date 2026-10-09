@@ -31,7 +31,6 @@ export function CatalogPage() {
   const toast = useToast((s) => s.show);
   const q = useQuery({ queryKey: ["catalog"], queryFn: () => api.get<Data>("/catalog"), staleTime: 30000 });
   const options = useQuery({ queryKey: ["erp-options"], queryFn: () => api.get<Options>("/erp/options"), staleTime: 60000 });
-  const limits = useQuery({ queryKey: ["limits"], queryFn: () => api.get<{ tariffName: string; unlimited: boolean; limits: Record<string, number>; used: Record<string, number> }>("/limits"), staleTime: 60000 });
   const [tab, setTab] = useState<"products" | "categories" | "blocks">("products");
   const [search, setSearch] = useState("");
   const [cat, setCat] = useState("");
@@ -149,19 +148,13 @@ export function CatalogPage() {
 
   return (
     <div>
-      <PageTitle title="Katalog boshqaruvi" description="Mahsulotlar va kategoriyalarni shu yerdan qo'shing, tahrirlang, tartiblang. ID — banner/storis/xabar havolasi uchun." actions={
+      <PageTitle title="Katalog" actions={
         tab === "categories"
           ? <button className="btn btn-primary" onClick={() => setEditC({})}><Plus size={16} /> Kategoriya qo'shish</button>
           : tab === "products"
             ? <button className="btn btn-primary" onClick={() => setEditP({})}><Plus size={16} /> Mahsulot qo'shish</button>
             : undefined
       } />
-      {limits.data && !limits.data.unlimited && (
-        <div className="text-xs text-slate-500 mb-3">
-          Tarif: <b>{limits.data.tariffName}</b> · Mahsulotlar: <b className={limits.data.used.products >= limits.data.limits.products ? "text-rose-600" : ""}>{limits.data.used.products}/{limits.data.limits.products}</b>
-          {limits.data.used.products >= limits.data.limits.products && <span className="text-rose-600"> — chegara to'ldi, tarifni yangilang</span>}
-        </div>
-      )}
       <div className="flex gap-2 mb-4">
         <button className={`btn ${tab === "products" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("products")}>Mahsulotlar ({products.length})</button>
         <button className={`btn ${tab === "categories" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("categories")}>Kategoriyalar ({cats.length})</button>
@@ -305,7 +298,8 @@ export function CatalogPage() {
 function newFieldId(): string { return "f" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 
 interface FieldDef { id: string; name: string; options: string[] }
-interface CFRow { id: string; name: string; value: string; type: "text" | "select" }
+interface VariantDef { id: string; name: string; values: string[] }
+interface CFRow { id: string; name: string; value: string }
 interface Dim { name: string; values: string[] }
 interface Combo { label: string; attrs: { name: string; value: string }[] }
 interface VariantItem { label: string; attrs: { name: string; value: string }[]; price?: number; stock?: number; image?: string | null }
@@ -376,6 +370,19 @@ function ProductEditor({ initial, cats, onClose, onSaved }: { initial: Partial<P
   const removeDim = (i: number) => setDims((d) => d.filter((_, j) => j !== i));
   const addDimValue = (i: number, val: string) => { const v = val.trim(); if (!v) return; setDims((d) => d.map((x, j) => j === i ? (x.values.includes(v) ? x : { ...x, values: [...x.values, v] }) : x)); };
   const removeDimValue = (i: number, vi: number) => setDims((d) => d.map((x, j) => j === i ? { ...x, values: x.values.filter((_, k) => k !== vi) } : x));
+
+  // ----- Variant xotirasi (do'kon bo'yicha eslab qolingan turlar/qiymatlar) -----
+  const [vdefs, setVdefs] = useState<VariantDef[]>([]);
+  useEffect(() => { api.get<VariantDef[]>("/catalog/variant-defs").then(setVdefs).catch(() => {}); }, []);
+  const saveVdefs = (next: VariantDef[]) => { setVdefs(next); api.put("/catalog/variant-defs", next).catch(() => {}); };
+  /** Eslab qolingan variant turini mahsulotga qo'shish (yoki e'tiborni unga qaratish) */
+  const addRememberedDim = (def: VariantDef) => setDims((d) => d.some((x) => x.name.trim().toLowerCase() === def.name.trim().toLowerCase()) ? d : [...d, { name: def.name, values: [] }]);
+  /** Eslab qolingan qiymatni mos variantga qo'shish */
+  const defValuesFor = (name: string): string[] => vdefs.find((v) => v.name.trim().toLowerCase() === name.trim().toLowerCase())?.values || [];
+  /** Xotiradan variant turini butunlay o'chirish */
+  const forgetDim = (id: string) => saveVdefs(vdefs.filter((v) => v.id !== id));
+  /** Xotiradan bitta qiymatni o'chirish */
+  const forgetValue = (id: string, val: string) => saveVdefs(vdefs.map((v) => v.id === id ? { ...v, values: v.values.filter((x) => x !== val) } : v));
   const setVField = (label: string, k: "price" | "stock" | "image", val: string) => setVData((d) => { const cur = d[label] || { price: "", stock: "", image: "" }; return { ...d, [label]: { ...cur, [k]: val } }; });
 
   const pickImages = async (files: FileList) => {
@@ -401,19 +408,33 @@ function ProductEditor({ initial, cats, onClose, onSaved }: { initial: Partial<P
     } catch (e) { toast((e as Error).message, "err"); }
   };
 
-  // ----- Qo'shimcha maydonlar (Matn / Tanlovli) -----
+  // ----- Qo'shimcha maydonlar (do'kon bo'yicha umumiy) -----
+  // Har bir maydon do'konning BARCHA mahsulotlariga tegishli; har mahsulot o'z qiymatini kiritadi.
+  // Bitta mahsulotga qo'shilgan maydon — keyingi mahsulotlarda ham avtomatik ochiladi.
   const [defs, setDefs] = useState<FieldDef[]>([]);
-  const [cfs, setCfs] = useState<CFRow[]>((initial.customFields || []).map((c) => ({ ...c, type: "text" as const })));
+  const [cfs, setCfs] = useState<CFRow[]>([]);
   useEffect(() => {
     api.get<FieldDef[]>("/catalog/field-defs").then((list) => {
       setDefs(list);
-      // Mavjud maydonlarning turini aniqlaymiz: nomi tanlovli ta'rifga mos kelsa — "select"
-      setCfs((rows) => rows.map((r) => list.some((d) => d.name.toLowerCase() === r.name.toLowerCase()) ? { ...r, type: "select" } : r));
+      const own = (initial.customFields || []);
+      const valOf = (def: FieldDef) => own.find((c) => c.id === def.id || c.name.trim().toLowerCase() === def.name.trim().toLowerCase())?.value || "";
+      // Do'kondagi barcha maydonlar + mahsulotning o'z qiymatlari
+      const rows: CFRow[] = list.map((d) => ({ id: d.id, name: d.name, value: valOf(d) }));
+      // Ta'rifda yo'q, lekin mahsulotda bor eski maydonlar — ularni ham ko'rsatamiz
+      for (const c of own) if (!list.some((d) => d.id === c.id || d.name.trim().toLowerCase() === c.name.trim().toLowerCase())) rows.push({ id: c.id, name: c.name, value: c.value });
+      setCfs(rows);
     }).catch(() => {});
   }, []);
-  const addField = (type: "text" | "select") => setCfs((d) => [...d, { id: newFieldId(), name: "", value: "", type }]);
+  const addField = () => setCfs((d) => [...d, { id: newFieldId(), name: "", value: "" }]);
   const setField = (i: number, k: "name" | "value", v: string) => setCfs((d) => d.map((c, j) => j === i ? { ...c, [k]: v } : c));
-  const removeField = (i: number) => setCfs((d) => d.filter((_, j) => j !== i));
+  const removeField = async (i: number) => {
+    const row = cfs[i];
+    setCfs((d) => d.filter((_, j) => j !== i));
+    // Agar bu maydon do'kon ta'rifida bo'lsa — uni butun do'kondan (barcha mahsulotlardan) o'chiramiz
+    if (defs.some((d) => d.id === row.id)) {
+      try { await api.del(`/catalog/field-defs/${row.id}`); setDefs((d) => d.filter((x) => x.id !== row.id)); } catch { /* ignore */ }
+    }
+  };
   const defByName = (name: string) => defs.find((d) => d.name.toLowerCase() === name.trim().toLowerCase());
 
   const save = async () => {
@@ -424,17 +445,33 @@ function ProductEditor({ initial, cats, onClose, onSaved }: { initial: Partial<P
     if (oldP != null && !(oldP > Number(f.price))) { toast("Eski narx yangi narxdan katta bo'lishi kerak", "err"); return; }
     setSaving(true);
     const variantsOn = hasVariants && combos.length > 0;
-    // Tanlovli maydon ta'riflari: yangi maydon / yangi qiymat avtomatik saqlanadi (qayta ishlatish uchun)
+    // Ishlatilgan variant turlari/qiymatlarini do'kon xotirasiga qo'shamiz (keyingi mahsulotlarda tezkor tanlash uchun)
+    if (variantsOn) {
+      const nextV: VariantDef[] = vdefs.map((v) => ({ ...v, values: [...v.values] }));
+      let vChanged = false;
+      for (const d of dims) {
+        const nm = d.name.trim(); if (!nm || !d.values.length) continue;
+        const idx = nextV.findIndex((v) => v.name.trim().toLowerCase() === nm.toLowerCase());
+        if (idx < 0) { nextV.push({ id: newFieldId(), name: nm, values: [...d.values] }); vChanged = true; }
+        else for (const val of d.values) if (!nextV[idx].values.includes(val)) { nextV[idx].values.push(val); vChanged = true; }
+      }
+      if (vChanged) { setVdefs(nextV); api.put("/catalog/variant-defs", nextV).catch(() => {}); }
+    }
+    // Do'kon bo'yicha maydon ta'riflari: yangi maydon / yangi qiymat avtomatik saqlanadi (barcha mahsulotlar uchun)
     const newDefs: FieldDef[] = defs.map((d) => ({ ...d, options: [...d.options] }));
     let defsChanged = false;
     for (const c of cfs) {
-      if (c.type !== "select" || !c.name.trim()) continue;
+      if (!c.name.trim()) continue;
       const nm = c.name.trim(), val = c.value.trim();
-      const idx = newDefs.findIndex((d) => d.name.toLowerCase() === nm.toLowerCase());
+      const idx = newDefs.findIndex((d) => d.id === c.id || d.name.toLowerCase() === nm.toLowerCase());
       if (idx < 0) { newDefs.push({ id: c.id, name: nm, options: val ? [val] : [] }); defsChanged = true; }
-      else if (val && !newDefs[idx].options.includes(val)) { newDefs[idx].options.push(val); defsChanged = true; }
+      else {
+        if (newDefs[idx].name !== nm) { newDefs[idx].name = nm; defsChanged = true; }
+        if (val && !newDefs[idx].options.includes(val)) { newDefs[idx].options.push(val); defsChanged = true; }
+      }
     }
-    const cfOut = cfs.filter((c) => c.name.trim()).map((c) => { const def = c.type === "select" ? newDefs.find((d) => d.name.toLowerCase() === c.name.trim().toLowerCase()) : null; return { id: def?.id || c.id, name: c.name.trim(), value: c.value }; });
+    // Faqat qiymati bor maydonlar mahsulotga yoziladi — bo'sh qiymat Mini App'da ko'rinmaydi
+    const cfOut = cfs.filter((c) => c.name.trim() && c.value.trim()).map((c) => { const def = newDefs.find((d) => d.id === c.id || d.name.toLowerCase() === c.name.trim().toLowerCase()); return { id: def?.id || c.id, name: c.name.trim(), value: c.value.trim() }; });
     const body = {
       name: f.name.trim(), price: Number(f.price) || 0, oldPrice: oldP,
       categoryCode: f.categoryCode || null, note: f.note || null,
@@ -468,7 +505,7 @@ function ProductEditor({ initial, cats, onClose, onSaved }: { initial: Partial<P
             <label className="label flex items-center gap-1">Eski narxi
               <span className="text-slate-400 cursor-help" title="Kiritilsa, mahsulot kartochkasida eski narx ustidan chizilgan holda — yangi narx chegirma sifatida ko'rinadi."><Info size={13} /></span>
             </label>
-            <input type="number" className="input" placeholder="ixtiyoriy" value={f.oldPrice} onChange={(e) => set("oldPrice", e.target.value)} />
+            <input type="number" className="input" value={f.oldPrice} onChange={(e) => set("oldPrice", e.target.value)} />
           </div>
         </div>
         <div>
@@ -488,10 +525,10 @@ function ProductEditor({ initial, cats, onClose, onSaved }: { initial: Partial<P
             </div>
           )}
         </div>
-        <div><label className="label">Mahsulot haqida</label><textarea className="input" rows={2} placeholder="ixtiyoriy" value={f.note} onChange={(e) => set("note", e.target.value)} /></div>
+        <div><label className="label">Mahsulot haqida</label><textarea className="input" rows={2} value={f.note} onChange={(e) => set("note", e.target.value)} /></div>
 
         <div>
-          <label className="label">Rasm * <span className="text-slate-400 font-normal">(birinchisi asosiy; bir nechta bo'lsa Mini App'da aylanadi)</span></label>
+          <label className="label">Rasm *</label>
           <div className="flex flex-wrap items-center gap-2">
             {f.images.map((img, i) => (
               <div key={img + i} className="relative w-16 h-16 group">
@@ -510,46 +547,63 @@ function ProductEditor({ initial, cats, onClose, onSaved }: { initial: Partial<P
 
         <div>
           <div className="flex items-center justify-between flex-wrap gap-2">
-            <label className="label mb-0">Qo'shimcha maydon</label>
-            <div className="flex gap-2">
-              <button className="btn btn-ghost !py-1 !px-2 text-xs" onClick={() => addField("text")}><Plus size={14} /> Matn</button>
-              <button className="btn btn-ghost !py-1 !px-2 text-xs" onClick={() => addField("select")}><Plus size={14} /> Tanlovli</button>
-            </div>
+            <label className="label mb-0 flex items-center gap-1">Qo'shimcha maydon
+              <span className="text-slate-400 cursor-help" title="Qo'shilgan maydon do'konning barcha mahsulotlariga qo'shiladi. Har mahsulotda o'z qiymatini kiritasiz; bo'sh qoldirilsa Mini App'da ko'rinmaydi."><Info size={13} /></span>
+            </label>
+            <button className="btn btn-ghost !py-1 !px-2 text-xs" onClick={addField}><Plus size={14} /> Qo'shish</button>
           </div>
           <datalist id="cf-names">{defs.map((d) => <option key={d.id} value={d.name} />)}</datalist>
           {cfs.map((cf, i) => {
-            const opts = cf.type === "select" ? (defByName(cf.name)?.options || []) : [];
+            const opts = defByName(cf.name)?.options || [];
             return (
               <div key={cf.id} className="flex gap-2 mt-2 items-center">
-                <span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 ${cf.type === "select" ? "bg-violet-100 text-violet-700" : "bg-slate-100 text-slate-500"}`}>{cf.type === "select" ? "Tanlovli" : "Matn"}</span>
-                <input className="input flex-1" placeholder="Nomi (masalan: Brend)" value={cf.name} list={cf.type === "select" ? "cf-names" : undefined} onChange={(e) => setField(i, "name", e.target.value)} />
-                <input className="input flex-1" placeholder="Qiymati (masalan: Nike)" value={cf.value} list={cf.type === "select" ? `cf-opts-${i}` : undefined} onChange={(e) => setField(i, "value", e.target.value)} />
-                {cf.type === "select" && <datalist id={`cf-opts-${i}`}>{opts.map((o) => <option key={o} value={o} />)}</datalist>}
-                <button className="w-9 rounded-lg flex items-center justify-center text-rose-500 hover:bg-rose-50 shrink-0" onClick={() => removeField(i)}><Trash2 size={15} /></button>
+                <input className="input flex-1" placeholder="Nomi (masalan: Brend)" value={cf.name} list="cf-names" onChange={(e) => setField(i, "name", e.target.value)} />
+                <input className="input flex-1" placeholder="Qiymati (masalan: Nike)" value={cf.value} list={`cf-opts-${i}`} onChange={(e) => setField(i, "value", e.target.value)} />
+                <datalist id={`cf-opts-${i}`}>{opts.map((o) => <option key={o} value={o} />)}</datalist>
+                <button className="w-9 rounded-lg flex items-center justify-center text-rose-500 hover:bg-rose-50 shrink-0" title="Butun do'kondan o'chirish" onClick={() => { void removeField(i); }}><Trash2 size={15} /></button>
               </div>
             );
           })}
-          <div className="help mt-1">«Matn» — har mahsulotga alohida yoziladi. «Tanlovli» — nomi va qiymatlar saqlanadi, keyingi mahsulotlarda ro'yxatdan tez tanlanadi.</div>
+          {!cfs.length && <div className="help mt-1">Masalan: Brend, Material, Kafolat… Bir marta qo'shilsa — barcha mahsulotlarda chiqadi.</div>}
         </div>
 
         <div className="rounded-xl bg-slate-50 p-3">
           <label className="flex items-center gap-2 text-sm font-medium">
-            <Toggle value={f.trackStock} onChange={(v) => set("trackStock", v)} /> Qoldiq hisobini yuritish
+            <Toggle value={f.trackStock} onChange={(v) => set("trackStock", v)} /> Qoldiq
+            <span className="text-slate-400 cursor-help" title="Yoqilsa: buyurtmalarda qoldiq ayriladi, tugasa Mini App'da «sotuvda yo'q» bo'ladi. O'chiq bo'lsa — cheksiz."><Info size={13} /></span>
           </label>
           {f.trackStock && (
             <div className="mt-2"><input type="number" className="input max-w-[160px]" placeholder="Qoldiq miqdori" value={f.stock} onChange={(e) => set("stock", e.target.value)} /></div>
           )}
-          <div className="help mt-1">Yoqilsa: buyurtmalarda qoldiq ayriladi, tugasa Mini App'da «sotuvda yo'q» bo'ladi. O'chiq bo'lsa — cheksiz.</div>
         </div>
 
         <div className="rounded-xl bg-slate-50 p-3">
           <label className="flex items-center gap-2 text-sm font-medium"><Toggle value={hasVariants} onChange={setHasVariants} /> Variant mahsulot</label>
           {hasVariants && (
             <div className="mt-3 space-y-3">
-              {dims.map((d, i) => (
+              {vdefs.length > 0 && (
+                <div className="rounded-lg bg-white border border-slate-200 p-2.5">
+                  <div className="text-xs font-semibold text-slate-500 mb-1.5">Eslab qolingan variant turlari (tezkor qo'shish):</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {vdefs.map((vd) => {
+                      const used = dims.some((x) => x.name.trim().toLowerCase() === vd.name.trim().toLowerCase());
+                      return (
+                        <span key={vd.id} className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg ${used ? "bg-slate-100 text-slate-400" : "bg-blue-50 text-blue-700"}`}>
+                          <button disabled={used} onClick={() => addRememberedDim(vd)}>{vd.name}</button>
+                          <button className="text-slate-300 hover:text-rose-500" title="Xotiradan o'chirish" onClick={() => forgetDim(vd.id)}><X size={11} /></button>
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              {dims.map((d, i) => {
+                const remembered = defValuesFor(d.name).filter((v) => !d.values.includes(v));
+                const rdef = vdefs.find((v) => v.name.trim().toLowerCase() === d.name.trim().toLowerCase());
+                return (
                 <div key={i} className="rounded-lg border border-slate-200 bg-white p-2.5">
                   <div className="flex gap-2 items-center">
-                    <input className="input flex-1" placeholder="Variant nomi (masalan: Rangi, O'lchami)" value={d.name} onChange={(e) => setDimName(i, e.target.value)} />
+                    <input className="input flex-1" placeholder="Variant nomi (masalan: Rangi, O'lchami)" value={d.name} list="vdef-names" onChange={(e) => setDimName(i, e.target.value)} />
                     <button className="w-8 h-8 rounded-lg text-rose-500 hover:bg-rose-50 flex items-center justify-center shrink-0" onClick={() => removeDim(i)}><Trash2 size={15} /></button>
                   </div>
                   <div className="flex flex-wrap gap-1.5 mt-2 items-center">
@@ -558,10 +612,23 @@ function ProductEditor({ initial, cats, onClose, onSaved }: { initial: Partial<P
                     ))}
                     <input className="input !w-32 !py-1 text-sm" placeholder="+ qiymat, Enter" onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); const el = e.target as HTMLInputElement; addDimValue(i, el.value); el.value = ""; } }} />
                   </div>
+                  {remembered.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-1.5 items-center">
+                      <span className="text-[11px] text-slate-400">Eslab qolingan:</span>
+                      {remembered.map((v) => (
+                        <span key={v} className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-lg">
+                          <button onClick={() => addDimValue(i, v)}>+ {v}</button>
+                          {rdef && <button className="text-blue-300 hover:text-rose-500" title="Xotiradan o'chirish" onClick={() => forgetValue(rdef.id, v)}><X size={10} /></button>}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              ))}
+                );
+              })}
+              <datalist id="vdef-names">{vdefs.map((vd) => <option key={vd.id} value={vd.name} />)}</datalist>
               <button className="btn btn-ghost !py-1.5 text-sm" onClick={addDim}><Plus size={14} /> Variant qo'shish</button>
-              <label className="flex items-center gap-2 text-sm font-medium"><Toggle value={diffPrice} onChange={setDiffPrice} /> Har xil narx (har variant alohida)</label>
+              <label className="flex items-center gap-2 text-sm font-medium"><Toggle value={diffPrice} onChange={setDiffPrice} /> Har xil narx</label>
               {combos.length > 0 && (
                 <div className="rounded-lg border border-slate-200 bg-white divide-y divide-slate-100">
                   {combos.map((c) => (

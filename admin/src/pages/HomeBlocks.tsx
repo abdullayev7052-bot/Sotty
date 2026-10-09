@@ -27,6 +27,7 @@ export function HomeBlocksTab({ products, options }: { products: P[]; options?: 
   const toast = useToast((s) => s.show);
   const q = useQuery({ queryKey: ["home-blocks"], queryFn: () => api.get<HomeBlock[]>("/home-blocks") });
   const [edit, setEdit] = useState<HomeBlock | null>(null);
+  const [freshId, setFreshId] = useState<number | null>(null);
   const blocks = q.data || [];
   const fieldOptions = useMemo(() => [
     { value: "category", label: "Kategoriya" },
@@ -42,7 +43,20 @@ export function HomeBlocksTab({ products, options }: { products: P[]; options?: 
       limit: kind === "chips" ? 12 : 10,
     });
     await refresh();
+    setFreshId(b.id);
     setEdit(b);
+  };
+  // Yangi blok nomsiz holda yopilsa — uni o'chirib yuboramiz (bo'sh bloklar qolib ketmasin)
+  const closeEditor = async (saved: boolean) => {
+    const cur = edit;
+    setEdit(null);
+    if (!saved && cur && freshId === cur.id) {
+      const latest = (q.data || []).find((x) => x.id === cur.id);
+      const titled = latest && (latest.title.uz || latest.title.ru || latest.title.en);
+      const hasItems = latest?.items?.length;
+      if (!titled && !hasItems) { await api.del(`/home-blocks/${cur.id}`).catch(() => {}); await refresh(); }
+    }
+    setFreshId(null);
   };
   const move = async (i: number, dir: -1 | 1) => {
     const j = i + dir;
@@ -59,11 +73,6 @@ export function HomeBlocksTab({ products, options }: { products: P[]; options?: 
       <div className="flex flex-wrap gap-2 mb-4">
         <button className="btn btn-primary" onClick={() => { void create("products"); }}><Plus size={16} /> Mahsulotlar bloki</button>
         <button className="btn btn-ghost" onClick={() => { void create("chips"); }}><Plus size={16} /> Mini bloklar</button>
-        <div className="help w-full">
-          <b>Mahsulotlar bloki</b> — bosh sahifada mahsulotlar qatori. Mahsulotlar <b>Katalog</b> bo'limidan tanlanadi (bir nechta mahsulotni belgilab «Bloklar»ga biriktiring).{" "}
-          <b>Mini bloklar</b> — rasmli doiralar; «Qaysi qo'shimcha maydon» tanlansa, mahsulotlarning o'sha maydon qiymatlari bo'yicha filtrlanadi.
-          Bloklarning bosh sahifadagi o'rnini <b>Sozlamalar → Mini App → Dizayn → Bosh sahifadagi bloklar</b> da o'zgartirasiz.
-        </div>
       </div>
 
       <div className="space-y-2">
@@ -93,7 +102,7 @@ export function HomeBlocksTab({ products, options }: { products: P[]; options?: 
         {!blocks.length && <div className="card p-8 text-center text-slate-400 text-sm">Hali blok yo'q. Yuqoridagi tugmalar bilan qo'shing.</div>}
       </div>
 
-      {edit && <BlockEditor block={edit} products={products} fieldOptions={fieldOptions} onClose={() => setEdit(null)} onSaved={() => { void refresh(); toast("Saqlandi ✅"); }} />}
+      {edit && <BlockEditor block={edit} products={products} fieldOptions={fieldOptions} onClose={() => { void closeEditor(false); }} onSaved={() => { setFreshId(null); void refresh(); toast("Saqlandi ✅"); }} />}
     </div>
   );
 }
@@ -169,7 +178,7 @@ function BlockEditor({ block, products, fieldOptions, onClose, onSaved }: {
               <option value="">— tanlang —</option>
               {fieldOptions.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
             </select>
-            <div className="help">Masalan «add-1» (Muallif) tanlansa — har bir muallif uchun alohida doira chiqadi.</div>
+            <div className="help">Masalan Brend tanlansa — har bir brend uchun alohida doira chiqadi: Nike / Adidas..</div>
           </div>
         )}
 
@@ -230,7 +239,7 @@ function BlockEditor({ block, products, fieldOptions, onClose, onSaved }: {
                       {on && b.kind === "chips" && (
                         <div className="mt-2 pl-6 flex items-start gap-3 flex-wrap">
                           <ImageUpload value={entries[idx].image || ""} onChange={(img) => setEntries(entries.map((e, i) => (i === idx ? { ...e, image: img } : e)))} hint="Doirada ko'rinadigan rasm" />
-                          <div><label className="label">Ko'rinadigan nom (ixtiyoriy)</label>
+                          <div><label className="label">Ko'rinadigan nom</label>
                             <input className="input !w-52" placeholder={v.value} value={entries[idx].title || ""} onChange={(e) => setEntries(entries.map((x, i) => (i === idx ? { ...x, title: e.target.value } : x)))} /></div>
                           <div><label className="label">Nom o'lchami (px)</label>
                             <div className="flex items-center gap-2">

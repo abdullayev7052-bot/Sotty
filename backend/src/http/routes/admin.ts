@@ -234,6 +234,40 @@ adminRouter.put("/catalog/field-defs", async (req, res) => {
   await prisma.setting.upsert({ where: { shopId_key: { shopId: sid, key: "fieldDefs" } }, create: { shopId: sid, key: "fieldDefs", value: { list } }, update: { value: { list } } });
   res.json({ ok: true });
 });
+/** Qo'shimcha maydonni butun do'kon bo'yicha o'chirish: ta'rifdan ham, barcha mahsulotlardan ham */
+adminRouter.delete("/catalog/field-defs/:id", async (req, res) => {
+  const defId = String(req.params.id);
+  const sid = currentShopId();
+  const row = await prisma.setting.findUnique({ where: { shopId_key: { shopId: sid, key: "fieldDefs" } } });
+  const list = ((row?.value as { list?: FieldDef[] } | null)?.list) || [];
+  const target = list.find((d) => d.id === defId);
+  const next = list.filter((d) => d.id !== defId);
+  await prisma.setting.upsert({ where: { shopId_key: { shopId: sid, key: "fieldDefs" } }, create: { shopId: sid, key: "fieldDefs", value: { list: next } }, update: { value: { list: next } } });
+  // Mahsulotlardagi shu maydonni (id yoki nomi bo'yicha) olib tashlaymiz
+  const nameLc = target?.name.trim().toLowerCase();
+  const prods = await prisma.product.findMany({ where: { isDeleted: false }, select: { id: true, customFields: true } });
+  for (const p of prods) {
+    const cfs = (p.customFields as { id: string; name: string; value: string }[] | null) || [];
+    if (!cfs.length) continue;
+    const kept = cfs.filter((c) => c.id !== defId && c.name.trim().toLowerCase() !== nameLc);
+    if (kept.length !== cfs.length) await prisma.product.update({ where: { id: p.id }, data: { customFields: kept } });
+  }
+  invalidateProductCache();
+  res.json({ ok: true });
+});
+
+// ---------- Qayta ishlatiladigan variant turlari (do'kon xotirasi) ----------
+interface VariantDef { id: string; name: string; values: string[] }
+adminRouter.get("/catalog/variant-defs", async (_req, res) => {
+  const row = await prisma.setting.findUnique({ where: { shopId_key: { shopId: currentShopId(), key: "variantDefs" } } });
+  res.json(((row?.value as { list?: VariantDef[] } | null)?.list) || []);
+});
+adminRouter.put("/catalog/variant-defs", async (req, res) => {
+  const list = z.array(z.object({ id: z.string().max(60), name: z.string().trim().min(1).max(120), values: z.array(z.string().max(160)).max(300) })).max(100).parse(req.body);
+  const sid = currentShopId();
+  await prisma.setting.upsert({ where: { shopId_key: { shopId: sid, key: "variantDefs" } }, create: { shopId: sid, key: "variantDefs", value: { list } }, update: { value: { list } } });
+  res.json({ ok: true });
+});
 
 /** Parent mahsulotning variantlari (tahrirlashda prefill uchun) */
 adminRouter.get("/catalog/products/:id/variants", async (req, res) => {
