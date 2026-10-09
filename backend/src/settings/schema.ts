@@ -71,32 +71,12 @@ export const settingsSchema: SectionDef[] = [
       {
         title: "Do'kon",
         fields: [
-          { key: "shopName", label: "Do'kon nomi", type: "ltext", default: L("Birlik kitoblar do'koni", "Магазин книг Birlik", "Birlik bookstore") },
-          { key: "supportPhone", label: "Aloqa telefoni", type: "text", default: "+998 90 000 00 00" },
-          { key: "supportTelegram", label: "Aloqa uchun Telegram (username, @siz)", type: "text", default: "" },
+          { key: "shopName", label: "Do'kon nomi", type: "ltext", default: L("", "", "") },
+          { key: "supportPhone", label: "Aloqa telefoni", type: "text", default: "" },
+          { key: "supportTelegram", label: "Murojaat uchun", type: "text", default: "" },
           { key: "defaultLanguage", label: "Standart til", type: "select", default: "uz", options: [
             { value: "uz", label: "O'zbek" }, { value: "ru", label: "Русский" }, { value: "en", label: "English" },
           ] },
-          { key: "enabledLanguages", label: "Yoqilgan tillar", type: "tags", default: ["uz", "ru", "en"], help: "uz, ru, en" },
-          { key: "languageMode", label: "Yangi foydalanuvchi tili", type: "select", default: "default", options: [
-            { value: "default", label: "Har doim standart til" }, { value: "telegram", label: "Telegram tiliga qarab (bo'lmasa standart)" },
-          ] },
-          { key: "currencySuffix", label: "Valyuta belgisi (narx yonida)", type: "ltext", default: L("so'm", "сум", "UZS") },
-          { key: "priceDecimals", label: "Narxda kasr xonalari", type: "number", default: 0, min: 0, max: 3 },
-        ],
-      },
-      {
-        title: "Admin panel",
-        fields: [
-          { key: "adminPassword", label: "Admin panel paroli (bo'sh qoldirilsa o'zgarmaydi)", type: "password", default: "" },
-        ],
-      },
-      {
-        title: "Telegram bot",
-        part: "bot",
-        description: "Botni almashtirish: «Tahrirlash» ni bosing, BotFather'dan olingan yangi tokenni kiriting va «Saqlash» ni bosing. Saqlangach bot darhol yangi tokenda ishga tushadi.",
-        fields: [
-          { key: "botToken", label: "Bot tokeni", type: "password", default: "" },
         ],
       },
     ],

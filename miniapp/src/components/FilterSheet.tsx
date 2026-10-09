@@ -45,8 +45,8 @@ function PriceRange({ min, max, value, onChange, fmt }: { min: number; max: numb
 export function FilterSheet({ open, onClose, category, value, onApply }: {
   open: boolean; onClose: () => void; category: string; value: CatalogFilters; onApply: (f: CatalogFilters) => void;
 }) {
-  const { t, v: setting } = useT();
-  const suffix = t("general", "currencySuffix");
+  const { t, v: setting, lang } = useT();
+  const suffix = ({ uz: "so'm", ru: "сум", en: "sum" } as Record<string, string>)[lang] || "so'm";
   const fmt = (n: number) => money(n, suffix, 0);
   const data = useQuery({
     queryKey: ["filters", category],

@@ -5,7 +5,7 @@ import bcrypt from "bcryptjs";
 import type { User } from "@prisma/client";
 import { env } from "../env.ts";
 import { prisma, currentShopId, runWithShop, DEFAULT_SHOP_ID } from "../db.ts";
-import { normalizeLang, getSettings } from "../settings/store.ts";
+import { normalizeLang } from "../settings/store.ts";
 import { tokenForShop, shopIdBySlug, botForShop } from "../bot/manager.ts";
 import { isShopInactive } from "../erp/limits.ts";
 import { touchUser } from "../analytics/track.ts";
@@ -76,7 +76,7 @@ export async function appAuth(req: Request, res: Response, next: NextFunction) {
     let user = await prisma.user.findFirst({ where: { telegramId: tgId } });
     if (!user) {
       user = await prisma.user.create({
-        data: { telegramId: tgId, tgUsername: tg!.username || null, tgFirstName: tg!.first_name || null, language: getSettings().general.languageMode === "telegram" ? normalizeLang(tg!.language_code?.slice(0, 2)) : normalizeLang(undefined) },
+        data: { telegramId: tgId, tgUsername: tg!.username || null, tgFirstName: tg!.first_name || null, language: normalizeLang(undefined) },
       });
     }
     (req as AppRequest).user = user;
@@ -105,6 +105,13 @@ export async function getAdminPasswordHash(): Promise<string | null> {
 }
 
 export const ADMIN_PASSWORD_MIN = 6;
+
+/** Joriy do'kon paroli to'g'riligini tekshirish (eski parolni so'rashda) */
+export async function verifyAdminPassword(password: string): Promise<boolean> {
+  if (!password) return false;
+  const hash = await getAdminPasswordHash();
+  return !!hash && bcrypt.compareSync(password, hash);
+}
 
 export async function setAdminPassword(password: string) {
   if (!password || password.length < ADMIN_PASSWORD_MIN) throw new Error(`Parol kamida ${ADMIN_PASSWORD_MIN} ta belgidan iborat bo'lishi kerak`);

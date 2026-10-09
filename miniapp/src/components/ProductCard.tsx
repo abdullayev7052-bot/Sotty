@@ -11,11 +11,14 @@ import { Img, QtyStepper } from "./ui.tsx";
 import { cardVariants, tapScale } from "../lib/motion.ts";
 import { useFavorites } from "../store/favorites.ts";
 
+/** Standart valyuta belgisi (til bo'yicha) — sozlamasiz */
+const CURRENCY: Record<string, string> = { uz: "so'm", ru: "сум", en: "sum" };
+
 export function useCatalogFmt() {
   const { t, v, lang } = useT();
   const theme = useApp((s) => s.theme);
-  const suffix = t("general", "currencySuffix");
-  const decimals = v<number>("general", "priceDecimals", 0);
+  const suffix = CURRENCY[lang] || CURRENCY.uz;
+  const decimals = 0;
   const steps = String(v<string>("catalog", "rangeSteps", "10,50")).split(",").map((x) => Number(x.trim())).filter((x) => x > 0);
   return {
     lang,

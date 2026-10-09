@@ -1,9 +1,9 @@
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { Bot, Users, Send } from "lucide-react";
+import { Bot, Users, Send, Pencil } from "lucide-react";
 import { api } from "../lib/api.ts";
-import { Spinner } from "../components/ui.tsx";
-import { SettingsForm } from "./Settings.tsx";
+import { PageTitle, Spinner, useToast } from "../components/ui.tsx";
 
 export interface Status {
   bot: { username: string; name: string } | null; publicUrl: string; port: number; appUrl: string | null;
@@ -29,8 +29,48 @@ function BotStatusCard() {
     </div>
   );
 }
+/** Bot tokenini ko'rish (yashirin) va almashtirish */
+function BotTokenCard() {
+  const toast = useToast((s) => s.show);
+  const acc = useQuery({ queryKey: ["admin-account"], queryFn: () => api.get<{ botTokenMasked: string; botUsername: string; hasBot: boolean }>("/account") });
+  const [editing, setEditing] = useState(false);
+  const [token, setToken] = useState("");
+  const [busy, setBusy] = useState(false);
+  const save = async () => {
+    setBusy(true);
+    try { const r = await api.post<{ botUsername: string }>("/account/bot-token", { token: token.trim() }); toast(`Bot ulandi: @${r.botUsername} ✅`); setEditing(false); setToken(""); void acc.refetch(); }
+    catch (e) { toast((e as Error).message, "err"); } finally { setBusy(false); }
+  };
+  if (!acc.data) return <Spinner />;
+  return (
+    <div className="card p-5 space-y-3">
+      <div className="font-semibold">Bot tokeni</div>
+      {!editing ? (
+        <div className="flex items-center gap-3 flex-wrap">
+          <code className="text-sm bg-slate-100 rounded-lg px-3 py-2 font-mono">{acc.data.botTokenMasked || "— ulanmagan —"}</code>
+          <button className="btn btn-ghost" onClick={() => setEditing(true)}><Pencil size={15} /> Tahrirlash</button>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <input className="input max-w-lg font-mono" placeholder="123456:AA... (BotFather'dan)" value={token} onChange={(e) => setToken(e.target.value)} autoFocus />
+          <div className="flex gap-2">
+            <button className="btn btn-primary" disabled={busy || !token.trim()} onClick={() => { void save(); }}>{busy ? "Tekshirilmoqda…" : "Saqlash"}</button>
+            <button className="btn btn-ghost" onClick={() => { setEditing(false); setToken(""); }}>Bekor</button>
+          </div>
+          <div className="help">BotFather'dan olingan yangi tokenni kiriting. Saqlangach bot darhol yangi tokenda ishga tushadi.</div>
+        </div>
+      )}
+    </div>
+  );
+}
 export function BotPage() {
-  return <SettingsForm section="general" part="bot" title="Bot" description="Telegram bot holati va tokeni" before={<BotStatusCard />} />;
+  return (
+    <div className="max-w-4xl">
+      <PageTitle title="Bot" description="Telegram bot holati va tokeni" />
+      <BotStatusCard />
+      <BotTokenCard />
+    </div>
+  );
 }
 
 /* ============ Telegram → Kanal (hozircha bo'sh) ============ */

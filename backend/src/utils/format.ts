@@ -1,18 +1,19 @@
 import type { Lang } from "../settings/schema.ts";
-import { getSettings, lt } from "../settings/store.ts";
+
+/** Standart valyuta belgisi (til bo'yicha) — sozlamasiz, bir xil */
+const CURRENCY: Record<Lang, string> = { uz: "so'm", ru: "сум", en: "sum" };
 
 /** 1830000 -> "1 830 000 so'm" */
 export function money(amount: number | null | undefined, lang: Lang, opts?: { suffix?: boolean; decimals?: number }): string {
-  const s = getSettings();
   const n = Number(amount || 0);
-  const decimals = opts?.decimals ?? s.general.priceDecimals ?? 0;
+  const decimals = opts?.decimals ?? 0;
   const abs = Math.abs(n);
   const fixed = abs.toFixed(decimals);
   const [int, frac] = fixed.split(".");
   const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
   const body = frac ? `${grouped}.${frac}` : grouped;
   const sign = n < 0 ? "-" : "";
-  const suffix = opts?.suffix === false ? "" : " " + lt(s.general.currencySuffix, lang);
+  const suffix = opts?.suffix === false ? "" : " " + (CURRENCY[lang] || CURRENCY.uz);
   return `${sign}${body}${suffix}`;
 }
 

@@ -55,8 +55,13 @@ registerRouter.post("/", async (req, res) => {
       slug, name: b.name, ownerName: b.ownerName || null, ownerPhone,
       botToken: b.botToken, botUsername: username, tariff: b.tariff || "free", active: true, suspended: false,
     } });
-    // Do'kon admin paroli (o'z do'koni konteksti ichida)
-    await runWithShop(shop.id, () => setAdminPassword(b.adminPassword));
+    // Do'kon admin paroli + umumiy sozlamalarni ro'yxatdan boshlab to'ldiramiz
+    await runWithShop(shop.id, async () => {
+      await setAdminPassword(b.adminPassword);
+      // Do'kon nomi 3 tilga nusxalanadi; aloqa telefoni ro'yxatdan olingan raqam bilan boshlanadi
+      const general = { shopName: { uz: b.name, ru: b.name, en: b.name }, supportPhone: ownerPhone };
+      await prisma.setting.upsert({ where: { shopId_key: { shopId: shop.id, key: "general" } }, create: { shopId: shop.id, key: "general", value: general }, update: { value: general } });
+    });
     await startShopBot(shop.id, slug, b.botToken);
     log.info(`🆕 Yangi do'kon ro'yxatdan o'tdi: ${b.name} (@${username})`);
     res.json({ ok: true, slug, botUsername: username, adminUrl: `/admin/?shop=${slug}`, appUrl: `/app/?shop=${slug}` });

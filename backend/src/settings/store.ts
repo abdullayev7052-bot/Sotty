@@ -6,7 +6,7 @@ import { log } from "../logger.ts";
 export interface AppSettings {
   general: {
     shopName: LText; supportPhone: string; supportTelegram: string; defaultLanguage: Lang;
-    enabledLanguages: Lang[]; currencySuffix: LText; priceDecimals: number; adminPassword: string; languageMode: "default" | "telegram"; botToken: string;
+    adminPassword: string; botToken: string;
   };
   adminPanel: Record<string, unknown>;
   payments: {
@@ -160,7 +160,7 @@ export function fill(template: string, vars: Record<string, string | number | un
 
 export function normalizeLang(l: unknown): Lang {
   const s = getSettings();
-  const enabled = (s.general.enabledLanguages?.length ? s.general.enabledLanguages : ["uz", "ru", "en"]) as Lang[];
+  const enabled: Lang[] = ["uz", "ru", "en"];
   if (typeof l === "string" && enabled.includes(l as Lang)) return l as Lang;
   return enabled.includes(s.general.defaultLanguage) ? s.general.defaultLanguage : enabled[0];
 }

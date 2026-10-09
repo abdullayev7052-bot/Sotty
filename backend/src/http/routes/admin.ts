@@ -6,7 +6,8 @@ import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { prisma, currentShopId } from "../../db.ts";
 import { env } from "../../env.ts";
-import { adminAuth, adminLogin, adminLogout, adminForgot, adminReset, setAdminPassword, shopContext } from "../auth.ts";
+import { adminAuth, adminLogin, adminLogout, adminForgot, adminReset, setAdminPassword, verifyAdminPassword, shopContext } from "../auth.ts";
+import { normalizePhone, prettyPhone } from "../../utils/format.ts";
 import { settingsSchema } from "../../settings/schema.ts";
 import { getSettings, loadSettings, updateSection } from "../../settings/store.ts";
 import { fileUrl } from "../../erp/images.ts";
@@ -14,12 +15,12 @@ import { getSyncStatus, notifyStockArrived } from "../../erp/sync.ts";
 import { getWebhookState } from "../../erp/webhook.ts";
 import { getPublicUrl, setPublicUrlManually } from "../../utils/publicUrl.ts";
 import { activity, errMsg, log } from "../../logger.ts";
-import { botForShop } from "../../bot/manager.ts";
+import { botForShop, startShopBot } from "../../bot/manager.ts";
 import { updateMenuButton, restartBot } from "../../bot/index.ts";
 import { sendToUser } from "../../bot/send.ts";
 import { invalidateProductCache } from "./app.ts";
 import { priceFor, storeIsUzs } from "../../erp/stores.ts";
-import { InputFile, InlineKeyboard } from "grammy";
+import { InputFile, InlineKeyboard, Bot } from "grammy";
 import { buildReport, presetRange, ymd, type Group } from "../../analytics/report.ts";
 import { valueOf } from "../../erp/productFields.ts";
 import { listStores } from "../../erp/stores.ts";
@@ -75,6 +76,55 @@ adminRouter.put("/settings/:section", async (req, res) => {
   if (section === "bot" || section === "general") void updateMenuButton();
   invalidateProductCache();
   res.json({ ok: true, settings: { ...(getSettings() as unknown as Record<string, unknown>), general: { ...getSettings().general, adminPassword: "", botToken: getSettings().general.botToken ? "••••••••" + String(getSettings().general.botToken).slice(-6) : "" } } });
+});
+
+// ---------- Admin akkaunt: parol (eski+yangi) va telefon ----------
+adminRouter.get("/account", async (_req, res) => {
+  const shop = await prisma.shop.findUnique({ where: { id: currentShopId() }, select: { ownerPhone: true, botToken: true, botUsername: true } });
+  const tok = shop?.botToken || "";
+  res.json({
+    phone: shop?.ownerPhone ? prettyPhone(shop.ownerPhone) : "", phoneRaw: shop?.ownerPhone || "",
+    botTokenMasked: tok ? tok.split(":")[0] + ":••••••" + tok.slice(-4) : "",
+    botUsername: shop?.botUsername || "",
+    hasBot: !!tok,
+  });
+});
+adminRouter.post("/account/password", async (req, res) => {
+  const b = z.object({ oldPassword: z.string().max(100), newPassword: z.string().max(100) }).parse(req.body);
+  if (!(await verifyAdminPassword(b.oldPassword))) { res.status(400).json({ error: "Joriy parol noto'g'ri" }); return; }
+  try { await setAdminPassword(b.newPassword.trim()); } catch (e) { res.status(400).json({ error: errMsg(e) }); return; }
+  await activity("admin", "Admin paroli o'zgartirildi");
+  res.json({ ok: true });
+});
+adminRouter.post("/account/phone", async (req, res) => {
+  const b = z.object({ phone: z.string().trim().min(7).max(40) }).parse(req.body);
+  const phone = normalizePhone(b.phone);
+  if (!phone) { res.status(400).json({ error: "Telefon raqami noto'g'ri" }); return; }
+  const sid = currentShopId();
+  // Boshqa do'kon shu raqamni ishlatmasligi kerak (login telefon bo'yicha ishlaydi)
+  const shops = await prisma.shop.findMany({ select: { id: true, ownerPhone: true } });
+  if (shops.some((s) => s.id !== sid && normalizePhone(s.ownerPhone || "") === phone)) {
+    res.status(400).json({ error: "Bu telefon raqami boshqa do'konga biriktirilgan" }); return;
+  }
+  await prisma.shop.update({ where: { id: sid }, data: { ownerPhone: phone } });
+  await activity("admin", `Admin telefon raqami o'zgartirildi: ${prettyPhone(phone)}`);
+  res.json({ ok: true, phone: prettyPhone(phone) });
+});
+adminRouter.post("/account/bot-token", async (req, res) => {
+  const b = z.object({ token: z.string().trim().regex(/^\d{6,}:[A-Za-z0-9_-]{30,}$/, "Bot tokeni noto'g'ri") }).parse(req.body);
+  const sid = currentShopId();
+  // Token boshqa do'konda ishlatilmasin
+  if (await prisma.shop.findFirst({ where: { botToken: b.token, NOT: { id: sid } }, select: { id: true } })) {
+    res.status(400).json({ error: "Bu bot boshqa do'konga biriktirilgan" }); return;
+  }
+  // BotFather'da tekshiramiz
+  let username = "";
+  try { const me = await new Bot(b.token).api.getMe(); username = me.username || ""; }
+  catch { res.status(400).json({ error: "Bot tokeni ishlamadi. BotFather'dan to'g'ri token oling." }); return; }
+  const shop = await prisma.shop.update({ where: { id: sid }, data: { botToken: b.token, botUsername: username } });
+  try { await startShopBot(sid, shop.slug, b.token); } catch (e) { log.warn("bot restart", errMsg(e)); }
+  await activity("admin", `Bot almashtirildi: @${username}`);
+  res.json({ ok: true, botUsername: username });
 });
 
 // ---------- Katalog variantlari (ichki) ----------

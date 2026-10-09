@@ -238,7 +238,7 @@ export function Profile() {
       {/* Til */}
       <BottomSheet open={sheet === "language"} onClose={() => setSheet(null)} title={t("profile", "language")}>
         <div className="px-4 pb-8 space-y-2">
-          {(v<Lang[]>("general", "enabledLanguages", ["uz", "ru", "en"]) || ["uz", "ru", "en"]).map((l) => (
+          {(["uz", "ru", "en"] as Lang[]).map((l) => (
             <button key={l} onClick={() => { haptic.select(); app.setLang(l); setSheet(null); }} className={`w-full p-4 rounded-2xl border text-left font-semibold ${l === lang ? "border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)]" : "border-slate-200"}`}>{LANG_NAMES[l]}</button>
           ))}
         </div>

@@ -45,8 +45,7 @@ export function storeKeyboard(lang: Lang, currentId: string): InlineKeyboard {
 }
 
 export function languageKeyboard(): InlineKeyboard {
-  const s = getSettings().general;
-  const enabled = (s.enabledLanguages?.length ? s.enabledLanguages : ["uz", "ru", "en"]) as Lang[];
+  const enabled: Lang[] = ["uz", "ru", "en"];
   const names: Record<Lang, string> = { uz: "🇺🇿 O'zbek", ru: "🇷🇺 Русский", en: "🇬🇧 English" };
   const kb = new InlineKeyboard();
   for (const l of enabled) kb.text(names[l], `lang:${l}`);

@@ -99,13 +99,63 @@ export function SettingsForm({ section, part, title, description, before }: Prop
             </div>
           </div>
         ))}
-        {!groups.length && <div className="text-slate-400 text-sm">Bu sahifada sozlamalar yo'q</div>}
+        {section === "general" && !part && <AdminAccountCard />}
+        {!groups.length && section !== "general" && <div className="text-slate-400 text-sm">Bu sahifada sozlamalar yo'q</div>}
       </div>
       {dirty && (
         <div className="sticky bottom-4 mt-4 flex justify-end">
           <button className="btn btn-primary shadow-lg" disabled={saving} onClick={() => { void save(); }}><Save size={16} /> {saving ? "Saqlanmoqda…" : "O'zgarishlarni saqlash"}</button>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Admin akkaunt: login telefoni va parolni (eski+yangi) o'zgartirish */
+function AdminAccountCard() {
+  const toast = useToast((s) => s.show);
+  const acc = useQuery({ queryKey: ["admin-account"], queryFn: () => api.get<{ phone: string; phoneRaw: string }>("/account") });
+  const [phone, setPhone] = useState("");
+  const [oldPw, setOldPw] = useState("");
+  const [newPw, setNewPw] = useState("");
+  const [newPw2, setNewPw2] = useState("");
+  const [busyP, setBusyP] = useState(false);
+  const [busyPw, setBusyPw] = useState(false);
+  useEffect(() => { if (acc.data) setPhone(acc.data.phoneRaw || ""); }, [acc.data]);
+
+  const savePhone = async () => {
+    setBusyP(true);
+    try { const r = await api.post<{ phone: string }>("/account/phone", { phone }); toast("Telefon o'zgartirildi ✅"); void acc.refetch(); setPhone(r.phone ? phone : phone); }
+    catch (e) { toast((e as Error).message, "err"); } finally { setBusyP(false); }
+  };
+  const savePassword = async () => {
+    if (newPw.length < 6) { toast("Yangi parol kamida 6 ta belgidan iborat bo'lishi kerak", "err"); return; }
+    if (newPw !== newPw2) { toast("Yangi parollar mos kelmadi", "err"); return; }
+    setBusyPw(true);
+    try { await api.post("/account/password", { oldPassword: oldPw, newPassword: newPw }); toast("Parol o'zgartirildi ✅"); setOldPw(""); setNewPw(""); setNewPw2(""); }
+    catch (e) { toast((e as Error).message, "err"); } finally { setBusyPw(false); }
+  };
+
+  return (
+    <div className="card p-5 rounded-2xl space-y-5">
+      <div className="font-semibold">Admin panel</div>
+      <div>
+        <label className="label">Admin telefon raqami (kirish uchun)</label>
+        <div className="flex gap-2 max-w-md">
+          <input className="input" placeholder="+998 90 123 45 67" value={phone} onChange={(e) => setPhone(e.target.value)} />
+          <button className="btn btn-primary shrink-0" disabled={busyP} onClick={() => { void savePhone(); }}>{busyP ? "…" : "Saqlash"}</button>
+        </div>
+        <div className="help">Shu raqam orqali admin panelga kirasiz. Parolni unutganda ham shu raqam tekshiriladi.</div>
+      </div>
+      <div className="border-t border-slate-100 pt-4">
+        <label className="label">Parolni o'zgartirish</label>
+        <div className="grid sm:grid-cols-3 gap-2 max-w-2xl">
+          <input type="password" className="input" placeholder="Joriy parol" value={oldPw} onChange={(e) => setOldPw(e.target.value)} autoComplete="current-password" />
+          <input type="password" className="input" placeholder="Yangi parol" value={newPw} onChange={(e) => setNewPw(e.target.value)} autoComplete="new-password" />
+          <input type="password" className="input" placeholder="Yangi parolni takrorlang" value={newPw2} onChange={(e) => setNewPw2(e.target.value)} autoComplete="new-password" />
+        </div>
+        <button className="btn btn-primary mt-2" disabled={busyPw || !oldPw || !newPw} onClick={() => { void savePassword(); }}>{busyPw ? "Saqlanmoqda…" : "Parolni o'zgartirish"}</button>
+      </div>
     </div>
   );
 }
