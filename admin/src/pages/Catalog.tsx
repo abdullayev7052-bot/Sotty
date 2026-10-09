@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, EyeOff, Star, ArrowUp, ArrowDown, Search, ArrowDownAZ, Copy, ChevronsUp, ChevronsDown, Percent, Image as ImageIcon, Plus, Pencil, Trash2, Info, X } from "lucide-react";
+import { Eye, EyeOff, Star, ArrowUp, ArrowDown, Search, ArrowDownAZ, Copy, ChevronsUp, ChevronsDown, Percent, Image as ImageIcon, Plus, Pencil, Trash2, Info, X, LayoutGrid } from "lucide-react";
 import { api, type Options } from "../lib/api.ts";
 import { Modal, PageTitle, Spinner, Toggle, useToast } from "../components/ui.tsx";
 import { HomeBlocksTab } from "./HomeBlocks.tsx";
@@ -40,6 +40,17 @@ export function CatalogPage() {
   const [disc, setDisc] = useState<{ percent: number; round: boolean; step: number; mode: string } | null>(null);
   const [bannerPick, setBannerPick] = useState(false);
   const banners = useQuery({ queryKey: ["banners"], queryFn: () => api.get<BannerRow[]>("/banners"), enabled: bannerPick });
+  const [blockPick, setBlockPick] = useState(false);
+  const blocksQ = useQuery({ queryKey: ["home-blocks"], queryFn: () => api.get<{ id: number; kind: string; title?: Record<string, string> }[]>("/home-blocks"), enabled: blockPick });
+  /** Tanlangan mahsulotlarni mavjud blokka qo'shish */
+  const attachToBlock = async (blockId: number) => {
+    const ids = [...sel];
+    try {
+      const r = await api.post<{ added: number }>(`/home-blocks/${blockId}/add-products`, { ids });
+      toast(`${r.added} ta mahsulot blokka qo'shildi`);
+      setBlockPick(false); setSel(new Set());
+    } catch (e) { toast((e as Error).message, "err"); }
+  };
   /** Tanlangan mahsulotlarni bannerga biriktirish — mijoz bannerni bosganda shular chiqadi */
   const attachToBanner = async (b: BannerRow) => {
     const ids = [...sel];
@@ -170,9 +181,8 @@ export function CatalogPage() {
                 <span className="text-xs font-semibold text-blue-700">{sel.size} tanlandi:</span>
                 <button className="btn btn-ghost !py-1 !px-2 text-xs" onClick={() => { void bulk({ hidden: true }); }}>Yashirish</button>
                 <button className="btn btn-ghost !py-1 !px-2 text-xs" onClick={() => { void bulk({ hidden: false }); }}>Ko'rsatish</button>
-                <button className="btn btn-ghost !py-1 !px-2 text-xs" onClick={() => { void bulk({ featured: true }); }}>★ Tavsiyaga</button>
-                <button className="btn btn-ghost !py-1 !px-2 text-xs" onClick={() => { void bulk({ featured: false }); }}>Tavsiyadan olish</button>
-                <button className="btn btn-ghost !py-1 !px-2 text-xs" onClick={() => setBannerPick(true)}><ImageIcon size={13} /> Bannerga biriktirish</button>
+                <button className="btn btn-ghost !py-1 !px-2 text-xs" onClick={() => setBannerPick(true)}><ImageIcon size={13} /> Banner</button>
+                <button className="btn btn-ghost !py-1 !px-2 text-xs" onClick={() => setBlockPick(true)}><LayoutGrid size={13} /> Bloklar</button>
                 <button className="btn btn-ghost !py-1 !px-2 text-xs text-rose-600" onClick={() => setDisc({ percent: 10, round: true, step: 1000, mode: "nearest" })}><Percent size={12} /> Chegirma</button>
               </div>
             )}
@@ -245,6 +255,21 @@ export function CatalogPage() {
             </button>
           ))}
           <div className="help">Biriktirilgandan keyin mijoz shu bannerni bosganda katalogda aynan shu mahsulotlar ko'rinadi.</div>
+        </div>
+      </Modal>
+
+      <Modal open={blockPick} onClose={() => setBlockPick(false)} title={`Blokka qo'shish (${sel.size} ta mahsulot)`}>
+        <div className="space-y-2">
+          {blocksQ.isLoading ? <Spinner /> : !(blocksQ.data || []).filter((b) => b.kind === "products").length ? (
+            <div className="text-sm text-slate-500 py-4 text-center">«Mahsulotlar bloki» yo'q. <b>Katalog → Bosh sahifa bloklari</b> da yarating.</div>
+          ) : (blocksQ.data || []).filter((b) => b.kind === "products").map((b) => (
+            <button key={b.id} onClick={() => { void attachToBlock(b.id); }} className="w-full flex items-center gap-3 p-3 rounded-xl border border-slate-200 hover:border-[var(--primary)] text-left">
+              <LayoutGrid size={18} className="text-[var(--primary)] shrink-0" />
+              <span className="flex-1 text-sm font-medium">{b.title?.uz || `Blok #${b.id}`}</span>
+              <span className="text-xs text-[var(--primary)] font-semibold shrink-0">Qo'shish →</span>
+            </button>
+          ))}
+          <div className="help">Tanlangan mahsulotlar shu blokka qo'shiladi (dublikatlar qo'shilmaydi). Bosh sahifada blok sekin aylanib turadi.</div>
         </div>
       </Modal>
 

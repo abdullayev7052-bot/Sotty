@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import { motion } from "motion/react";
 import { useNavigate } from "react-router-dom";
 import { ArrowRight, ChevronRight } from "lucide-react";
@@ -136,13 +136,38 @@ function BlockRow({ b, onOpen, onWaitlist, overrides }: { b: HomeBlock; onOpen: 
   }
   return (
     <Section title={b.title} onMore={() => nav("/catalog")}>
-      <div className="flex gap-3 overflow-x-auto px-4 pb-2 hide-scroll items-stretch">
+      <AutoScrollRow>
         {(b.items || []).map((p, i) => (
           <div key={p.id} className="w-[46%] shrink-0"><ProductCard p={withWait(p, overrides)} index={i} onOpen={onOpen} onWaitlist={onWaitlist} /></div>
         ))}
-      </div>
+      </AutoScrollRow>
     </Section>
   );
+}
+
+/** Mahsulot bloki: sekin o'ngdan chapga aylanib turadi; foydalanuvchi qo'lda surса to'xtaydi */
+function AutoScrollRow({ children }: { children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const paused = useRef(false);
+  useEffect(() => {
+    const el = ref.current; if (!el) return;
+    let raf = 0;
+    const step = () => {
+      if (!paused.current && el.scrollWidth > el.clientWidth + 4) {
+        el.scrollLeft += 0.4;
+        if (el.scrollLeft >= el.scrollWidth - el.clientWidth - 1) el.scrollLeft = 0;
+      }
+      raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    const pause = () => { paused.current = true; };
+    const resume = () => { setTimeout(() => { paused.current = false; }, 2500); };
+    el.addEventListener("pointerdown", pause);
+    el.addEventListener("pointerup", resume);
+    el.addEventListener("pointerleave", resume);
+    return () => { cancelAnimationFrame(raf); el.removeEventListener("pointerdown", pause); el.removeEventListener("pointerup", resume); el.removeEventListener("pointerleave", resume); };
+  }, []);
+  return <div ref={ref} className="flex gap-3 overflow-x-auto px-4 pb-2 hide-scroll items-stretch">{children}</div>;
 }
 
 function Section({ title, children, onMore }: { title: string; children: React.ReactNode; onMore?: () => void }) {
@@ -150,7 +175,7 @@ function Section({ title, children, onMore }: { title: string; children: React.R
     <motion.section className="mt-4" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
       <div className="wrap flex items-center justify-between mb-2">
         <h2 className="text-base font-bold">{title}</h2>
-        {onMore && <button onClick={onMore} className="text-sm text-slate-400 flex items-center">→<ChevronRight size={16} /></button>}
+        {onMore && <button onClick={onMore} className="text-sm text-[var(--primary)] font-semibold flex items-center gap-0.5">Barchasi<ChevronRight size={15} /></button>}
       </div>
       {children}
     </motion.section>

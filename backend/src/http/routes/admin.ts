@@ -772,6 +772,19 @@ adminRouter.put("/home-blocks/:id/items", async (req, res) => {
   }
   res.json({ ok: true });
 });
+/** Tanlangan mahsulotlarni mavjud blokka qo'shish (Katalog → ko'p tanlash → Bloklar) */
+adminRouter.post("/home-blocks/:id/add-products", async (req, res) => {
+  const id = Number(req.params.id);
+  const ids = z.array(z.number()).max(200).parse((req.body as { ids?: number[] })?.ids || []);
+  const block = await prisma.homeBlock.findUnique({ where: { id }, select: { id: true } });
+  if (!block) { res.status(404).json({ error: "Blok topilmadi" }); return; }
+  const existing = await prisma.homeBlockItem.findMany({ where: { blockId: id }, select: { productId: true, sortOrder: true } });
+  const have = new Set(existing.map((e) => e.productId).filter(Boolean) as number[]);
+  let order = existing.reduce((m, e) => Math.max(m, e.sortOrder), -1) + 1;
+  const toAdd = ids.filter((pid) => !have.has(pid));
+  if (toAdd.length) await prisma.homeBlockItem.createMany({ data: toAdd.map((productId) => ({ blockId: id, productId, sortOrder: order++ })) });
+  res.json({ ok: true, added: toAdd.length });
+});
 /** Qo'shimcha maydon qiymatlari (chips bloklari uchun tanlash ro'yxati) */
 adminRouter.get("/field-values", async (req, res) => {
   const key = String(req.query.key || "");
