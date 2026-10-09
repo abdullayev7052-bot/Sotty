@@ -43,8 +43,8 @@ export function useCatalogFmt() {
     placeholderNameColor: themedColor(theme, v<string>("catalog", "placeholderNameColor", ""), v<string>("catalog", "placeholderNameColorDark", ""), "var(--text)"),
     nameWeight: v<string>("catalog", "nameWeight", "500"),
     /** Karta yuzida qo'shimcha matn sozlanganmi — barcha kartochkalarda joy ajratiladi */
-    faceConfigured: ((v<{ face?: boolean; show?: boolean }[]>("catalog", "productFields", []) || []).some((f) => f?.face && f?.show !== false)),
-    showSku: v<boolean>("catalog", "showSku", false),
+    faceConfigured: false,
+    showSku: false,
   };
 }
 

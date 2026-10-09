@@ -71,7 +71,7 @@ export function CatalogPage() {
   const visible = useMemo(() => {
     let list = products;
     if (cat) list = list.filter((p) => p.categoryId === cat);
-    if (search.trim()) { const s = search.toLowerCase(); list = list.filter((p) => p.name.toLowerCase().includes(s) || (p.sku || "").includes(s) || String(p.id) === s); }
+    if (search.trim()) { const s = search.toLowerCase(); list = list.filter((p) => p.name.toLowerCase().includes(s) || String(p.id) === s); }
     return list;
   }, [products, cat, search]);
 
@@ -127,6 +127,20 @@ export function CatalogPage() {
     setProducts((all) => { const l = [...all].sort((a, b) => a.name.localeCompare(b.name, "uz")).map((p, i) => ({ ...p, sortOrder: i + 1 })); reorderP(l.map((p) => p.id)); return l; });
     toast("A–Z tartiblandi");
   };
+  /** Mahsulotlarni tanlangan tartibda qayta tartiblash (va saqlash) */
+  const sortBy = (mode: string) => {
+    if (!mode) return;
+    const cmp: Record<string, (a: P, b: P) => number> = {
+      price_asc: (a, b) => (a.finalPrice ?? a.price) - (b.finalPrice ?? b.price),
+      price_desc: (a, b) => (b.finalPrice ?? b.price) - (a.finalPrice ?? a.price),
+      newest: (a, b) => b.id - a.id,
+      oldest: (a, b) => a.id - b.id,
+      za: (a, b) => b.name.localeCompare(a.name, "uz"),
+    };
+    const fn = cmp[mode]; if (!fn) return;
+    setProducts((all) => { const l = [...all].sort(fn).map((p, i) => ({ ...p, sortOrder: i + 1 })); reorderP(l.map((p) => p.id)); return l; });
+    toast("Tartiblandi");
+  };
   const [editP, setEditP] = useState<Partial<P> | null>(null); // mahsulot tahrirlagich (yangi uchun {})
   const [editC, setEditC] = useState<Partial<C> | null>(null); // kategoriya tahrirlagich
   const delProduct = async (p: P) => {
@@ -166,8 +180,16 @@ export function CatalogPage() {
       {tab === "products" ? (
         <div className="card">
           <div className="p-3 flex flex-wrap gap-2 items-center border-b border-slate-100">
-            <div className="relative flex-1 min-w-[180px]"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input className="input pl-9" placeholder="Nomi, SKU yoki ID..." value={search} onChange={(e) => setSearch(e.target.value)} /></div>
+            <div className="relative flex-1 min-w-[180px]"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input className="input pl-9" placeholder="Nomi yoki ID..." value={search} onChange={(e) => setSearch(e.target.value)} /></div>
             <select className="input w-auto max-w-[220px]" value={cat} onChange={(e) => setCat(e.target.value)}><option value="">Barcha kategoriyalar</option>{cats.map((c) => <option key={c.bitoId} value={c.bitoId}>{c.name}</option>)}</select>
+            <select className="input w-auto" value="" onChange={(e) => { sortBy(e.target.value); e.target.value = ""; }} title="Tartiblash">
+              <option value="">Tartiblash…</option>
+              <option value="price_asc">Narx: arzondan</option>
+              <option value="price_desc">Narx: qimmatdan</option>
+              <option value="newest">Avval yangilari</option>
+              <option value="oldest">Avval eskilari</option>
+              <option value="za">Nomi Z–A</option>
+            </select>
             <button className="btn btn-ghost" onClick={sortAZ}><ArrowDownAZ size={16} /> A–Z</button>
             {sel.size > 0 && (
               <div className="flex flex-wrap gap-1.5 items-center bg-blue-50 rounded-lg px-2 py-1 w-full sm:w-auto">

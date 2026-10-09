@@ -97,7 +97,7 @@ function sortProducts(list: Product[], user: PUser, override?: string): Product[
     popular: (a, b) => Number(b.featured) - Number(a.featured) || b.sortOrder - a.sortOrder,
   };
   // Mijoz Mini App'da vaqtincha tanlagan tartib (sessiya davomida); bo'lmasa — admin sozlamasi
-  const base = (override && cmp[override]) || cmp[s.sortMode] || cmp.manual;
+  const base = (override && cmp[override]) || cmp.manual;
   const out = [...list].sort(base);
   if (s.outOfStockLast) out.sort((a, b) => Number(priceFor(b, user).stock > 0) - Number(priceFor(a, user).stock > 0));
   return out;
@@ -290,7 +290,7 @@ appRouter.get("/products", async (req, res) => {
   }
 
   if (q && q.length >= Math.max(1, s.searchMinChars)) {
-    const scored = list.map((p) => ({ p, sc: matchScore(q, p.searchKey, s.searchFuzzy) })).filter((x) => x.sc > 0);
+    const scored = list.map((p) => ({ p, sc: matchScore(q, p.searchKey, true) })).filter((x) => x.sc > 0);
     scored.sort((a, b) => b.sc - a.sc || a.p.sortOrder - b.p.sortOrder);
     list = scored.map((x) => x.p);
   } else {

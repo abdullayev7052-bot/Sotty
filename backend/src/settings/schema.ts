@@ -688,11 +688,9 @@ export const settingsSchema: SectionDef[] = [
         ],
       },
       {
-        title: "Mahsulotning qo'shimcha ma'lumotlari",
-        description: "Mahsulotning qo'shimcha maydonlari, izoh va kategoriya Mini App'da qanday nomda va tartibda ko'rinishi. Bog'lanish maydon ID bo'yicha.",
+        title: "Mahsulot kartochkasi (ko'rinishi)",
+        description: "Kartochkadagi matnlarning rangi va o'lchami",
         fields: [
-          { key: "productFields", label: "Maydonlar", type: "productFields", default: [], source: "shop:productFields" },
-          { key: "detailsTitleShow", label: "«Mahsulot haqida» sarlavhasini ko'rsatish", type: "boolean", default: true },
           { key: "faceLabelShow", label: "Kartochka betidagi maydon nomi bilan ko'rsatilsin", type: "boolean", default: false, help: "O'chiq bo'lsa faqat qiymat ko'rinadi: «Shayx Muhammad Sodiq»" },
           { key: "faceColor", label: "Kartochka betidagi qo'shimcha matn rangi", type: "color", default: "#64748b" },
           { key: "faceColorDark", label: "— tungi rejimda", type: "color", default: "", help: "Bo'sh qoldirilsa tungi rejimda avtomatik (yaxshi ko'rinadigan) rang ishlatiladi" },
@@ -727,17 +725,8 @@ export const settingsSchema: SectionDef[] = [
       {
         title: "Tartib va ko'rinish",
         fields: [
-          { key: "sortMode", label: "Mahsulotlar tartibi", type: "select", default: "manual", options: [
-            { value: "manual", label: "Qo'lda (Katalog boshqaruvi bo'limida)" },
-            { value: "name_asc", label: "Nomi A → Z" },
-            { value: "name_desc", label: "Nomi Z → A" },
-            { value: "price_asc", label: "Narx: arzondan" },
-            { value: "price_desc", label: "Narx: qimmatdan" },
-            { value: "newest", label: "Yangi qo'shilganlar avval" },
-          ] },
           { key: "columns", label: "Ustunlar soni", type: "number", default: 2, min: 1, max: 3 },
           { key: "showCategoryImages", label: "Kategoriya rasmlarini ko'rsatish", type: "boolean", default: true },
-          { key: "showSku", label: "Artikul (SKU) ko'rsatish", type: "boolean", default: false },
           { key: "hideZeroPrice", label: "Narxi 0 bo'lgan mahsulotlarni yashirish", type: "boolean", default: true },
           { key: "quickAddEnabled", label: "Kartochkada ➕ tezkor qo'shish", type: "boolean", default: true },
           { key: "placeholderImage", label: "Rasmi yo'q mahsulot uchun rasm", type: "image", default: "", help: "Qurilma xotirasidan yuklanadi. Rasmi bo'lmagan barcha mahsulotlarda shu rasm ko'rinadi." },
@@ -752,6 +741,8 @@ export const settingsSchema: SectionDef[] = [
           { key: "descriptionTitle", label: "Mahsulot izohi sarlavhasi", type: "ltext", default: L("Mahsulot haqida", "О товаре", "About the product") },
           { key: "noDescription", label: "Izoh yo'q matni", type: "ltext", default: L("Qo'shimcha ma'lumot mavjud emas", "Дополнительная информация отсутствует", "No additional information") },
           { key: "emptyCatalog", label: "Mahsulot topilmadi", type: "ltext", default: L("Hech narsa topilmadi 🙈", "Ничего не найдено 🙈", "Nothing found 🙈") },
+          { key: "addToCart", label: "Savatchaga qo'shish tugmasi", type: "ltext", default: L("Savatchaga qo'shish", "Добавить в корзину", "Add to cart") },
+          { key: "inCartLabel", label: "Savatchada (kartochkada)", type: "ltext", default: L("Savatchada", "В корзине", "In cart") },
         ],
       },
       {
@@ -759,10 +750,6 @@ export const settingsSchema: SectionDef[] = [
         fields: [
           { key: "searchPlaceholder", label: "Qidiruv maydoni matni", type: "ltext", default: L("Mahsulot qidirish...", "Поиск товара...", "Search products...") },
           { key: "searchMinChars", label: "Minimal harflar soni", type: "number", default: 3, min: 1, max: 5 },
-          { key: "searchFuzzy", label: "Aqlli (kirill/lotin, xatolarga chidamli) qidiruv", type: "boolean", default: true },
-          { key: "filterEnabled", label: "Qidiruv yonida filtr tugmasi", type: "boolean", default: true, help: "Qo'shimcha maydonlar (muallif, nashriyot...), narx oralig'i va saralash bo'yicha filtrlash" },
-          { key: "filterFields", label: "Filtrda qaysi ko'rsatkichlar chiqsin", type: "filterFields", default: [], source: "shop:productFields",
-            help: "Masalan «Sahifa» ni o'chirib qo'ysangiz — filtr oynasida umuman ko'rinmaydi" },
           { key: "filterMaxValues", label: "Har bir filtrda nechta qiymat ko'rinsin", type: "number", default: 12, min: 4, max: 40 },
           { key: "filterTitle", label: "Filtr oynasi sarlavhasi", type: "ltext", default: L("Filtr", "Фильтр", "Filter") },
           { key: "filterApply", label: "Qo'llash tugmasi", type: "ltext", default: L("Ko'rsatish", "Показать", "Show") },
@@ -777,19 +764,6 @@ export const settingsSchema: SectionDef[] = [
           { key: "sortNewest", label: "Eng yangilari", type: "ltext", default: L("Yangilari", "Новинки", "Newest") },
           { key: "sortPopular", label: "Ommaboplari", type: "ltext", default: L("Ommaboplari", "Популярные", "Popular") },
           { key: "sortNameAsc", label: "Nomi bo'yicha", type: "ltext", default: L("Nomi bo'yicha", "По названию", "By name") },
-        ],
-      },
-      {
-        title: "Miqdor va quti",
-        fields: [
-          { key: "allowManualQty", label: "Miqdorni qo'lda kiritish katakchasi", type: "boolean", default: true },
-          { key: "maxQtyPerItem", label: "Bitta mahsulot uchun maksimal miqdor", type: "number", default: 1000, min: 1 },
-          { key: "boxModeEnabled", label: "Quti bilan buyurtma (mahsulotda 'qutidagi soni' bo'lsa)", type: "boolean", default: true },
-          { key: "boxLabel", label: "Quti bo'limi nomi", type: "ltext", default: L("Quti", "Коробка", "Box") },
-          { key: "pieceLabel", label: "Dona bo'limi nomi", type: "ltext", default: L("Dona", "Штука", "Piece") },
-          { key: "boxHint", label: "Quti izohi", type: "ltext", default: L("qutidagi soni — {n}", "в коробке — {n}", "per box — {n}"), placeholders: ["{n}"] },
-          { key: "addToCart", label: "Savatchaga qo'shish tugmasi", type: "ltext", default: L("Savatchaga qo'shish", "Добавить в корзину", "Add to cart") },
-          { key: "inCartLabel", label: "Savatchada (kartochkada)", type: "ltext", default: L("Savatchada", "В корзине", "In cart") },
         ],
       },
     ],

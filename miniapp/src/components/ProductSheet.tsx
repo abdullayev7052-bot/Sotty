@@ -66,9 +66,9 @@ export function ProductSheet({ product: opened, onClose, onWaitlist }: { product
   const labelColor = f.detailLabelColor;
   const valueColor = f.detailValueColor;
 
-  const boxEnabled = v<boolean>("catalog", "boxModeEnabled", true) && (eff?.boxItem || 0) > 0;
-  const manual = v<boolean>("catalog", "allowManualQty", true);
-  const maxQty = v<number>("catalog", "maxQtyPerItem", 1000);
+  const boxEnabled = false;
+  const manual = true;
+  const maxQty = 1000;
   const totalQty = mode === "box" ? count * (eff?.boxItem || 1) : count;
   const total = (eff?.price || 0) * totalQty;
   const needsVariant = variants.length > 0 && !current;
@@ -228,7 +228,7 @@ export function ProductSheet({ product: opened, onClose, onWaitlist }: { product
             )}
 
             <div className="mt-5">
-              {v<boolean>("catalog", "detailsTitleShow", true) && <div className="text-sm font-semibold text-slate-700 mb-2">{t("catalog", "descriptionTitle")}</div>}
+              <div className="text-sm font-semibold text-slate-700 mb-2">{t("catalog", "descriptionTitle")}</div>
               {details.length ? (
                 <div className="space-y-2">
                   {details.map((d, i) => (
@@ -242,7 +242,6 @@ export function ProductSheet({ product: opened, onClose, onWaitlist }: { product
                   ))}
                 </div>
               ) : <div className="text-sm text-slate-400">{t("catalog", "noDescription")}</div>}
-              {f.showSku && product.sku ? <div className="text-xs text-slate-400 mt-2">SKU: {product.sku}</div> : null}
             </div>
 
             {!out && (
