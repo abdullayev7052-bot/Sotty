@@ -95,7 +95,6 @@ export async function createOrder(user: User, input: CreateOrderInput, lang: Lan
   const c = s.checkout;
   if (!input.items.length) throw new OrderValidationError("Savatcha bo'sh", "empty");
   if (input.type === "delivery" && !c.deliveryEnabled) throw new OrderValidationError("Yetkazib berish o'chirilgan", "type");
-  if (input.type === "pickup" && !c.pickupEnabled) throw new OrderValidationError("Olib ketish o'chirilgan", "type");
 
   const ids = input.items.map((i) => i.productId);
   const products = await prisma.product.findMany({ where: { id: { in: ids }, isDeleted: false, hidden: false } });

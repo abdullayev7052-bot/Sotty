@@ -33,6 +33,8 @@ export interface FieldDef {
   label: string;
   type: FieldType;
   help?: string;
+  /** Shu (boolean) maydon yoqilgan bo'lsagina ko'rsatiladi */
+  showIf?: string;
   default: unknown;
   options?: { value: string; label: string }[];
   /** Dinamik variantlar manbai: bito:organizations | bito:warehouses | bito:prices | bito:employees | bito:states | bito:currencies */
@@ -48,6 +50,8 @@ export interface GroupDef {
   description?: string;
   /** Admin panelda bo'limning qaysi sahifasida ko'rsatiladi (masalan checkout: "cart" | "order"; general: "bot") */
   part?: string;
+  /** Shu (boolean) maydon yoqilgan bo'lsagina butun guruh ko'rsatiladi */
+  showIf?: string;
   fields: FieldDef[];
 }
 
@@ -775,32 +779,28 @@ export const settingsSchema: SectionDef[] = [
     description: "Buyurtmani rasmiylashtirish jarayoni",
     groups: [
       {
-        title: "Turi",
+        title: "Buyurtma turi",
         part: "order",
+        description: "Yetkazib berish yoqilmasa — barcha buyurtmalar «Olib ketish» bo'ladi. Yoqilsa, yetkazib berish narxi, manzil va xarita sozlamalari ochiladi.",
         fields: [
-          { key: "deliveryEnabled", label: "Yetkazib berish", type: "boolean", default: true },
-          { key: "pickupEnabled", label: "Olib ketish", type: "boolean", default: true },
-          { key: "defaultType", label: "Standart tur", type: "select", default: "delivery", options: [
-            { value: "delivery", label: "Yetkazib berish" }, { value: "pickup", label: "Olib ketish" },
-          ] },
-          { key: "deliveryLabel", label: "Yetkazib berish matni", type: "ltext", default: L("Yetkazib berish", "Доставка", "Delivery") },
+          { key: "deliveryEnabled", label: "Yetkazib berish", type: "boolean", default: false },
+          { key: "deliveryLabel", label: "Yetkazib berish matni", type: "ltext", default: L("Yetkazib berish", "Доставка", "Delivery"), showIf: "deliveryEnabled" },
           { key: "pickupLabel", label: "Olib ketish matni", type: "ltext", default: L("Olib ketish", "Самовывоз", "Pickup") },
-          { key: "deliveryHint", label: "Yetkazib berish izohi", type: "ltext", default: L("Kuryer manzilingizga yetkazadi", "Курьер доставит по адресу", "Courier delivers to your address") },
-          { key: "pickupHint", label: "Olib ketish izohi", type: "ltext", default: L("Do'kondan o'zingiz olib ketasiz", "Заберёте сами из магазина", "You pick up from the store") },
-          { key: "pickupAddress", label: "Do'kon manzili (olib ketish uchun)", type: "ltext", default: L("Qo'qon sh., Istiqlol ko'chasi 1", "г. Коканд, ул. Истиклол 1", "Kokand, Istiqlol st. 1") },
-          { key: "pickupLocation", label: "Do'kon joylashuvi (xaritada belgilang)", type: "latlng", default: { lat: 40.5361, lng: 70.9268 }, help: "Mijoz 'Olib ketish'ni tanlaganda shu nuqtaga Google/Yandex xarita orqali yo'nalish ola oladi" },
-          { key: "pickupShowMap", label: "Olib ketishda xarita tugmalarini ko'rsatish", type: "boolean", default: true },
+          { key: "pickupAddress", label: "Do'kon manzili", type: "ltext", default: L("", "", "") },
+          { key: "pickupLocation", label: "Do'kon joylashuvi (xaritada belgilang)", type: "latlng", default: { lat: 40.5361, lng: 70.9268 }, help: "Mijoz «Olib ketish»da shu nuqtaga Google/Yandex xarita orqali yo'nalish ola oladi" },
+          { key: "pickupShowMap", label: "Xarita (yo'nalish) tugmalarini ko'rsatish", type: "boolean", default: true },
           { key: "pickupRouteLabel", label: "Yo'nalish tugmasi matni", type: "ltext", default: L("Yo'nalish", "Маршрут", "Directions") },
-          { key: "deliveryFee", label: "Yetkazib berish narxi (0 = bepul)", type: "number", default: 0, min: 0 },
-          { key: "freeDeliveryFrom", label: "Shu summadan boshlab bepul (0 = o'chirilgan)", type: "number", default: 0, min: 0 },
-          { key: "minOrderTotal", label: "Minimal buyurtma summasi", type: "number", default: 0, min: 0 },
+          { key: "deliveryFee", label: "Yetkazib berish narxi (0 = bepul)", type: "number", default: 0, min: 0, showIf: "deliveryEnabled" },
+          { key: "freeDeliveryFrom", label: "Shu summadan boshlab bepul (0 = o'chirilgan)", type: "number", default: 0, min: 0, showIf: "deliveryEnabled" },
+          { key: "minOrderTotal", label: "Minimal buyurtma summasi", type: "number", default: 0, min: 0, showIf: "deliveryEnabled" },
         ],
       },
       {
         title: "Manzil va xarita",
         part: "order",
+        showIf: "deliveryEnabled",
         fields: [
-          { key: "requireLocation", label: "Yetkazib berishda xaritadan joylashuv MAJBURIY (o'chirilsa — ixtiyoriy)", type: "boolean", default: true },
+          { key: "requireLocation", label: "Yetkazib berishda xaritadan joylashuv majburiy", type: "boolean", default: true },
           { key: "autoAddress", label: "Xaritadan belgilanganda manzilni avtomatik yozish", type: "boolean", default: true },
           { key: "autoAddressOverwrite", label: "Avtomatik manzil qo'lda yozilganini ham almashtirsin", type: "boolean", default: false, help: "O'chirilgan bo'lsa — mijoz qo'lda yozgan manzil saqlanadi, faqat bo'sh bo'lsa to'ldiriladi" },
           { key: "mapLat", label: "Xarita markazi — kenglik (lat)", type: "number", default: 40.5286, step: 0.0001 },

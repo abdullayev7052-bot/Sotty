@@ -8,7 +8,7 @@ import { useWaitlist } from "../store/waitlist.ts";
 import { openLink } from "../lib/telegram.ts";
 import { useApp, useT } from "../store/app.ts";
 import { useCart } from "../store/cart.ts";
-import { Page, QtyStepper, Empty, Img, Segmented, ConfirmDialog, SwipeToDelete, useToast } from "../components/ui.tsx";
+import { Page, QtyStepper, Empty, Img, ConfirmDialog, SwipeToDelete, useToast } from "../components/ui.tsx";
 import { MapPicker } from "../components/MapPicker.tsx";
 import { useCatalogFmt } from "../components/ProductCard.tsx";
 import { qty as fq } from "../lib/format.ts";
@@ -25,11 +25,9 @@ export function Cart() {
   const app = useApp();
   const user = app.data!.user;
   const [step, setStep] = useState<Step>("cart");
-  const [type, setType] = useState<"delivery" | "pickup">(() => {
-    const d = v<"delivery" | "pickup">("checkout", "defaultType", "delivery");
-    const del = v<boolean>("checkout", "deliveryEnabled", true), pick = v<boolean>("checkout", "pickupEnabled", true);
-    return d === "delivery" && del ? "delivery" : pick ? "pickup" : "delivery";
-  });
+  // Buyurtma turi tanlanmaydi: yetkazib berish yoqilgan bo'lsa — "delivery", aks holda hamma "pickup"
+  const delEnabled = v<boolean>("checkout", "deliveryEnabled", true);
+  const type: "delivery" | "pickup" = delEnabled ? "delivery" : "pickup";
   const [name, setName] = useState(user.name || "");
   const [phone, setPhone] = useState(user.phone || "");
   const [address, setAddress] = useState(user.address || "");
@@ -90,7 +88,6 @@ export function Cart() {
     return fee;
   }, [type, subtotal, discount, v]);
   const total = subtotal - discount + fee;
-  const delEnabled = v<boolean>("checkout", "deliveryEnabled", true), pickEnabled = v<boolean>("checkout", "pickupEnabled", true);
   const requireLocation = v<boolean>("checkout", "requireLocation", true);
   const mapLat = v<number>("checkout", "mapLat", 40.5286), mapLng = v<number>("checkout", "mapLng", 70.9425);
 
@@ -191,12 +188,6 @@ export function Cart() {
           </motion.div>
         ) : (
           <motion.div key="checkout" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.2 }} className="wrap mt-3 space-y-4">
-            {(delEnabled && pickEnabled) && (
-              <Segmented value={type} onChange={setType} options={[
-                ...(delEnabled ? [{ value: "delivery" as const, label: `🚚 ${t("checkout", "deliveryLabel")}`, hint: t("checkout", "deliveryHint") }] : []),
-                ...(pickEnabled ? [{ value: "pickup" as const, label: `🏪 ${t("checkout", "pickupLabel")}`, hint: t("checkout", "pickupHint") }] : []),
-              ]} />
-            )}
             {type === "pickup" && (
               <div className="card p-4">
                 <div className="flex gap-3 items-start"><MapPin className="shrink-0 text-[var(--primary)]" size={20} /><div><div className="text-sm font-semibold">{t("checkout", "pickupLabel")}</div><div className="text-sm text-slate-500">{pickupAddr}</div></div></div>

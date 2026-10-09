@@ -44,6 +44,8 @@ export function SettingsForm({ section, part, title, description, before }: Prop
   const def = useMemo(() => schema.data?.find((s) => s.key === section), [schema.data, section]);
   const groups = useMemo(() => (def?.groups || []).filter((g) => (part ? g.part === part : !g.part)), [def, part]);
   const [draft, setDraft] = useState<Record<string, unknown>>({});
+  /** showIf: boshqa (boolean) maydon yoqilganda ko'rsatish */
+  const shown = (f: { showIf?: string }) => !f.showIf || !!draft[f.showIf];
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const needsOptions = useMemo(() => !!groups.some((g) => g.fields.some((f) => f.source)), [groups]);
@@ -90,12 +92,12 @@ export function SettingsForm({ section, part, title, description, before }: Prop
       <PageTitle title={title || def.title} description={description ?? def.description} actions={saveBtn} />
       {before}
       <div className="space-y-4">
-        {groups.map((g) => (
+        {groups.filter(shown).map((g) => (
           <div key={g.title} id={`group-${g.title}`} className="card p-5 rounded-2xl">
             <div className="font-semibold mb-1">{g.title}</div>
             {g.description && <div className="text-sm text-slate-500 mb-3">{g.description}</div>}
             <div className="space-y-4 mt-3">
-              {g.fields.map((f) => <div key={f.key} id={`field-${f.key}`} className="rounded-xl -mx-2 px-2 py-1"><Field def={f} value={draft[f.key]} onChange={(v) => set(f.key, v)} options={options.data || null} onPatch={patchMany} /></div>)}
+              {g.fields.filter(shown).map((f) => <div key={f.key} id={`field-${f.key}`} className="rounded-xl -mx-2 px-2 py-1"><Field def={f} value={draft[f.key]} onChange={(v) => set(f.key, v)} options={options.data || null} onPatch={patchMany} /></div>)}
             </div>
           </div>
         ))}

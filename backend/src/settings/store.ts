@@ -66,8 +66,8 @@ export interface AppSettings {
     [key: string]: unknown;
   };
   checkout: {
-    deliveryEnabled: boolean; pickupEnabled: boolean; defaultType: "delivery" | "pickup"; deliveryLabel: LText; pickupLabel: LText;
-    deliveryHint: LText; pickupHint: LText; pickupAddress: LText; deliveryFee: number; freeDeliveryFrom: number; minOrderTotal: number;
+    deliveryEnabled: boolean; deliveryLabel: LText; pickupLabel: LText;
+    pickupAddress: LText; deliveryFee: number; freeDeliveryFrom: number; minOrderTotal: number;
     requireLocation: boolean; mapLat: number; mapLng: number; mapZoom: number; commentEnabled: boolean;
     [key: string]: unknown;
   };
