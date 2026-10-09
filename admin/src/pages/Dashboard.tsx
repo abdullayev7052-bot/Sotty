@@ -34,6 +34,9 @@ interface Report {
   search: { total: number; users: number; zero: number; top: { q: string; count: number }[]; zeroResult: { q: string; count: number }[]; toView: { users: number; pct: number }; toCart: { users: number; pct: number }; toOrder: { users: number; pct: number } };
   platforms: { key: string; users: number; opens: number }[];
   topViewed: { id: number; name: string; count: number; users: number }[];
+  topSelling: { id: number; name: string; qty: number; sum: number; orders: number }[];
+  topBuyers: { id: number; name: string; username: string | null; phone: string | null; orders: number; sum: number }[];
+  topVisitors: { id: number; name: string; username: string | null; visits: number }[];
   misc: { products: number; waitlist: number; favorites: number };
   stores: { id: string; name: string }[];
 }
@@ -266,6 +269,20 @@ Buyurtmalar: 1 000 ta
         </Card>
         <Card title="Eng ko'p ko'rilgan mahsulotlar">
           <Table head={["Mahsulot", "Ko'rishlar", "Odamlar"]} rows={d.topViewed.map((p) => [<span className="line-clamp-1" title={p.name}>{p.name || `#${p.id}`}</span>, fmtN(p.count), fmtN(p.users)])} />
+        </Card>
+      </div>
+
+      {/* ===== Mahsulot va mijoz analitikasi ===== */}
+      <h2 className="font-bold text-lg mb-3 flex items-center gap-2"><ShoppingBag size={18} /> Mahsulotlar va mijozlar</h2>
+      <div className="grid lg:grid-cols-3 gap-4 mb-6">
+        <Card title="Eng ko'p sotilgan mahsulotlar" hint="davr bo'yicha, bekor qilinganlarsiz">
+          <Table head={["Mahsulot", "Soni", "Summa"]} rows={d.topSelling.map((p) => [<span className="line-clamp-1" title={p.name}>{p.name || `#${p.id}`}</span>, fmtN(Math.round(p.qty)), money(p.sum)])} />
+        </Card>
+        <Card title="Eng ko'p xarid qilgan mijozlar" hint="buyurtma summasi bo'yicha">
+          <Table head={["Mijoz", "Buyurtma", "Summa"]} rows={d.topBuyers.map((c) => [<span className="line-clamp-1">{c.name}{c.username ? ` @${c.username}` : ""}</span>, fmtN(c.orders), money(c.sum)])} />
+        </Card>
+        <Card title="Eng faol mijozlar" hint="Mini App ochishlari bo'yicha">
+          <Table head={["Mijoz", "Tashriflar"]} rows={d.topVisitors.map((c) => [<span className="line-clamp-1">{c.name}{c.username ? ` @${c.username}` : ""}</span>, fmtN(c.visits)])} />
         </Card>
       </div>
 

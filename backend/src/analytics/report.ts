@@ -88,6 +88,7 @@ export async function buildReport(f: ReportFilters) {
     orderTotals, orderQuick, byStage, byType, byStore,
     eventsByName, funnelBase, orderUsers, convSplit,
     searchTop, searchStats, searchNext, platforms, langs, topViewed, sessions, misc,
+    topSelling, topBuyers, topVisitors,
   ] = await Promise.all([
     // Foydalanuvchilar: jami, ro'yxatdan o'tgan, yangilar
     q(Prisma.sql`SELECT count(*)::int AS total, count(*) FILTER (WHERE u.step = 'done')::int AS registered,
@@ -161,6 +162,20 @@ export async function buildReport(f: ReportFilters) {
         count(*) FILTER (WHERE secs < 30)::int AS bounced
       FROM sess`),
     Promise.all([prisma.product.count({ where: { isDeleted: false } }), prisma.waitlist.count({ where: { notifiedAt: null } }), prisma.favorite.count()]),
+    // Eng ko'p sotilgan mahsulotlar (buyurtma tarkibidan; bekor qilinganlar hisobga olinmaydi)
+    q(Prisma.sql`SELECT (it->>'productId')::int AS id, max(it->>'name') AS name,
+      sum((it->>'qty')::numeric)::float8 AS qty, sum((it->>'qty')::numeric * (it->>'price')::numeric)::float8 AS sum, count(DISTINCT o.id)::int AS orders
+      ${OR}, jsonb_array_elements(o.items) it
+      WHERE ${oP} AND o."stateKey" IS DISTINCT FROM 'canceled' AND (it->>'productId') ~ '^[0-9]+$'
+      GROUP BY 1 ORDER BY 3 DESC LIMIT 12`),
+    // Eng ko'p xarid qilgan mijozlar (buyurtma soni va summasi)
+    q(Prisma.sql`SELECT o."userId" AS id, max(coalesce(NULLIF(u.name,''), u."tgFirstName")) AS name, max(u."tgUsername") AS username, max(u.phone) AS phone,
+      count(*)::int AS orders, coalesce(sum(o.total),0)::float8 AS sum
+      ${OR} WHERE ${oP} AND o."stateKey" IS DISTINCT FROM 'canceled' GROUP BY 1 ORDER BY 6 DESC LIMIT 12`),
+    // Eng faol mijozlar (Mini App ochishlari soni)
+    q(Prisma.sql`SELECT e."userId" AS id, max(coalesce(NULLIF(u.name,''), u."tgFirstName")) AS name, max(u."tgUsername") AS username,
+      count(*) FILTER (WHERE e.name = 'app_open')::int AS visits
+      ${EV} WHERE ${evP} GROUP BY 1 HAVING count(*) FILTER (WHERE e.name = 'app_open') > 0 ORDER BY 4 DESC LIMIT 12`),
   ]);
 
   // ---- Seriyalarni bo'sh chelaklar bilan to'ldirish ----
@@ -253,6 +268,9 @@ export async function buildReport(f: ReportFilters) {
     },
     platforms: platforms.map((r) => ({ key: String(r.k), users: n(r.u), opens: n(r.opens) })),
     topViewed: topViewed.map((r) => ({ id: n(r.id), name: String(r.name || ""), count: n(r.c), users: n(r.u) })),
+    topSelling: topSelling.map((r) => ({ id: n(r.id), name: String(r.name || ""), qty: n(r.qty), sum: n(r.sum), orders: n(r.orders) })),
+    topBuyers: topBuyers.map((r) => ({ id: n(r.id), name: String(r.name || "—"), username: r.username ? String(r.username) : null, phone: r.phone ? String(r.phone) : null, orders: n(r.orders), sum: n(r.sum) })),
+    topVisitors: topVisitors.map((r) => ({ id: n(r.id), name: String(r.name || "—"), username: r.username ? String(r.username) : null, visits: n(r.visits) })),
     misc: { products: misc[0], waitlist: misc[1], favorites: misc[2] },
   };
 }
