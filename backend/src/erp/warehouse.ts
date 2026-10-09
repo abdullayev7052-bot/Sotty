@@ -91,8 +91,10 @@ export async function applyOrderStock(order: Order): Promise<void> {
   try {
     for (const it of items) {
       if (!it.productId || !(Number(it.qty) > 0)) continue;
-      const exists = await prisma.product.findUnique({ where: { id: it.productId }, select: { id: true } });
+      const exists = await prisma.product.findUnique({ where: { id: it.productId }, select: { id: true, trackStock: true } });
       if (!exists) continue;
+      // Qoldiq hisobini yuritmaydigan (cheksiz) mahsulotdan ayirmaymiz
+      if (!exists.trackStock) continue;
       await recordMovement({ productId: it.productId, type: "out", qty: Number(it.qty), unitPrice: Number(it.price || 0), reason: "order", orderId: order.id, note: `Buyurtma #${order.number || order.id}`, createdBy: "tizim" });
     }
     await prisma.order.update({ where: { id: order.id }, data: { stockApplied: true } });

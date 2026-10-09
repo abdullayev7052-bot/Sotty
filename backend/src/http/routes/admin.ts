@@ -213,7 +213,12 @@ adminRouter.put("/catalog/products/:id/full", async (req, res) => {
   const p = await prisma.product.update({ where: { id }, data });
   await syncVariants(p, b.variants, b.hasVariants);
   invalidateProductCache();
-  if (wasStock <= 0 && stock > 0) void notifyStockArrived([id]);
+  // Talablar (kutilayotgan)dagi mijozlarga xabar: qoldiq belgisi o'chirilsa (cheksizga o'tsa)
+  // yoki qoldiq hisobi yoqiq holatda 0 dan 1+ ga ko'tarilsa.
+  const newTrack = b.trackStock !== undefined ? b.trackStock : cur.trackStock;
+  const turnedUnlimited = newTrack === false && cur.trackStock === true;
+  const stockArrived = newTrack && wasStock <= 0 && stock > 0;
+  if (turnedUnlimited || stockArrived) void notifyStockArrived([id]);
   res.json({ ok: true, id: p.id });
 });
 
